@@ -7,7 +7,9 @@ locals {
   aws_region  = "eu-west-1"
 
   # Get organization root ID
-  organization_root_id = run_cmd("--terragrunt-quiet", "bash", "-c", "aws organizations list-roots --profile terraform-bootstrap --query 'Roots[0].Id' --output text")
+  # Use profile in local dev, default credentials in CI/CD (OIDC)
+  aws_profile_arg = get_env("CI", "") == "" ? "--profile terraform-bootstrap" : ""
+  organization_root_id = run_cmd("--terragrunt-quiet", "bash", "-c", "aws organizations list-roots ${local.aws_profile_arg} --query 'Roots[0].Id' --output text")
 
   tags = {
     Environment  = local.environment
