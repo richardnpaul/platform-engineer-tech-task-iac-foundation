@@ -56,6 +56,21 @@ resource "aws_iam_policy" "github_actions_boundary" {
         Resource = "*"
       },
       {
+        Sid    = "AllowTerraformStateAccess"
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject",
+          "s3:ListBucket",
+          "s3:GetBucketVersioning"
+        ]
+        Resource = [
+          "arn:aws:s3:::${var.state_bucket_name}",
+          "arn:aws:s3:::${var.state_bucket_name}/*"
+        ]
+      },
+      {
         Sid    = "DenyBoundaryModification"
         Effect = "Deny"
         Action = [
