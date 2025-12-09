@@ -1,0 +1,186 @@
+name: Terraform Deployment
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'modules/**'
+      - 'environments/**'
+      - 'root.hcl'
+      - '.github/workflows/terraform.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'modules/**'
+      - 'environments/**'
+      - 'root.hcl'
+
+permissions:
+  id-token: write  # Required for OIDC authentication
+  contents: read   # Required to checkout code
+  pull-requests: write  # Required to comment on PRs
+
+env:
+  AWS_REGION: eu-west-1
+  TERRAGRUNT_VERSION: 0.94.0
+  TERRAFORM_VERSION: 1.14.1
+  PLAN_ARTIFACT_NAME: tfplan-${{ github.event.pull_request.number || github.run_number }}-${{ github.sha }}
+
+jobs:
+  terraform-plan:
+    name: Terraform Plan
+    runs-on: ubuntu-24.04
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: arn:aws:iam::793421532223:role/GitHubActionsDeploymentRole
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: github-actions-${{ github.run_id }}
+
+      - name: Verify AWS identity
+        run: |
+          aws sts get-caller-identity
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+
+      - name: Setup Terragrunt
+        run: |
+          wget -q https://github.com/gruntwork-io/terragrunt/releases/download/v${{ env.TERRAGRUNT_VERSION }}/terragrunt_linux_amd64
+          chmod +x terragrunt_linux_amd64
+          sudo mv terragrunt_linux_amd64 /usr/local/bin/terragrunt
+          terragrunt --version
+
+      - name: Terragrunt Plan - Organizations
+        id: plan-orgs
+        working-directory: environments/aws/root/organizations
+        run: |
+          terragrunt plan -out=tfplan.binary 2>&1 | tee plan.txt
+          terragrunt show -no-color tfplan.binary > tfplan.txt
+        continue-on-error: true
+
+      - name: Terragrunt Plan - GitHub OIDC
+        id: plan-oidc
+        working-directory: environments/aws/root/deployment/github-oidc
+        run: |
+          terragrunt plan -out=tfplan.binary 2>&1 | tee plan.txt
+          terragrunt show -no-color tfplan.binary > tfplan.txt
+        continue-on-error: true
+
+      - name: Upload plan artifacts
+        uses: actions/upload-artifact@v5
+        if: (success() || failure()) && !cancelled()
+        with:
+          name: ${{ env.PLAN_ARTIFACT_NAME }}
+          path: |
+            environments/aws/root/organizations/tfplan.binary
+            environments/aws/root/organizations/tfplan.txt
+            environments/aws/root/deployment/github-oidc/tfplan.binary
+            environments/aws/root/deployment/github-oidc/tfplan.txt
+          retention-days: 7  # Only keep artifacts around for 7 days
+          if-no-files-found: warn
+
+      - name: Comment PR with plan
+        uses: actions/github-script@v8
+        if: github.event_name == 'pull_request'
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const planOrgs = fs.readFileSync('environments/aws/root/organizations/tfplan.txt', 'utf8');
+            const planOidc = fs.readFileSync('environments/aws/root/deployment/github-oidc/tfplan.txt', 'utf8');
+
+            const output = `### Terraform Plan Results
+
+            #### Organizations Stack
+            <details><summary>Show Organizations Plan</summary>
+
+            \`\`\`hcl
+            ${planOrgs}
+            \`\`\`
+
+            </details>
+
+            #### GitHub OIDC Stack
+            <details><summary>Show GitHub OIDC Plan</summary>
+
+            \`\`\`hcl
+            ${planOidc}
+            \`\`\`
+
+            </details>
+
+            ---
+            **Plan artifact:** \`${{ env.PLAN_ARTIFACT_NAME }}\`
+            *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Workflow: \`${{ github.workflow }}\`*`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            });
+
+  terraform-apply:
+    name: Terraform Apply
+    runs-on: ubuntu-24.04
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment: production  # Requires manual approval in GitHub
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Download plan artifacts
+        uses: actions/download-artifact@v6
+        with:
+          name: ${{ env.PLAN_ARTIFACT_NAME }}
+          path: .
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: arn:aws:iam::793421532223:role/GitHubActionsDeploymentRole
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: github-actions-${{ github.run_id }}
+
+      - name: Verify AWS identity
+        run: |
+          aws sts get-caller-identity
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+
+      - name: Setup Terragrunt
+        run: |
+          wget -q https://github.com/gruntwork-io/terragrunt/releases/download/v${{ env.TERRAGRUNT_VERSION }}/terragrunt_linux_amd64
+          chmod +x terragrunt_linux_amd64
+          sudo mv terragrunt_linux_amd64 /usr/local/bin/terragrunt
+          terragrunt --version
+
+      - name: Verify plan files exist
+        run: |
+          ls -lh environments/aws/root/organizations/tfplan.binary
+          ls -lh environments/aws/root/deployment/github-oidc/tfplan.binary
+
+      - name: Terragrunt Apply - Organizations
+        working-directory: environments/aws/root/organizations
+        run: |
+          terragrunt apply tfplan.binary
+
+      - name: Terragrunt Apply - GitHub OIDC
+        working-directory: environments/aws/root/deployment/github-oidc
+        run: |
+          terragrunt apply tfplan.binary

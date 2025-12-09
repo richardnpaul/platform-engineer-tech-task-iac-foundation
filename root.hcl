@@ -13,9 +13,10 @@ locals {
           region       = get_env("TG_STATE_REGION", local.default_region)
           encrypt      = true
           use_lockfile = true
-        },
-        # Only set profile if AWS_PROFILE is explicitly defined; omit it when using SSO/aws login
-        get_env("AWS_PROFILE", "") != "" ? { profile = get_env("AWS_PROFILE", "") } : {}
+          # Use terraform-bootstrap profile by default (created by bootstrap-state.sh)
+          # Override with AWS_PROFILE env var if needed
+          profile      = get_env("AWS_PROFILE", "terraform-bootstrap")
+        }
       )
     }
     gcp = {
@@ -63,7 +64,7 @@ terraform {
     commands = ["init"]
     execute = [
       "bash",
-      "${get_repo_root()}/scripts/bootstrap-state.sh",
+      "${get_repo_root()}/scripts/foundation-bootstrap.sh",
       local.cloud_provider,
       local.state_key,
       try(local.selected_backend.config.bucket, ""),

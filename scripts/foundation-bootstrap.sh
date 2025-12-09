@@ -7,7 +7,8 @@ PROVIDER=${1:-}
 STATE_KEY=${2:-}
 BUCKET=${3:-}
 REGION=${4:-}
-PROFILE=${5:-default}
+# Note: 5th arg is the target profile name, but we don't use it for bootstrap auth
+# Bootstrap needs root/admin creds, then creates the profile
 
 log() {
   echo "[bootstrap-state] $*"
@@ -38,8 +39,9 @@ command -v jq >/dev/null 2>&1 || { log "jq not found in PATH; also ensure that y
 command -v terragrunt >/dev/null 2>&1 || { log "Terragrunt not found in PATH; also ensure that you have terraform installed"; exit 1; }
 command -v terraform >/dev/null 2>&1 || { log "Terraform not found in PATH"; exit 1; }
 
+# For bootstrap operations, don't specify a profile - use whatever creds are currently active
+# (root via aws login, or existing terraform-bootstrap profile if re-running)
 AWS_ARGS=()
-[[ -n "${PROFILE}" ]] && AWS_ARGS+=(--profile "${PROFILE}")
 [[ -n "${REGION}" ]] && AWS_ARGS+=(--region "${REGION}")
 
 # Test if we need to login first
@@ -190,14 +192,120 @@ log "Applied assume-role policy to terraform-init-user"
 
 rm -f "${BOUNDARY_FILE}" "${ROLE_TRUST_FILE}" "${ROLE_POLICY_FILE}" "${USER_POLICY_FILE}"
 
-log "Bootstrap role configured with scoped permissions for Control Tower + landing zone setup"
-log "NEXT STEPS:"
-log "  1. Create access keys for terraform-init-user: aws iam create-access-key --user-name terraform-init-user"
-log "  2. Assume the bootstrap role to get temporary credentials:"
-log "     aws sts assume-role --role-arn ${ROLE_ARN} --role-session-name bootstrap-session --external-id terraform-bootstrap"
-log "  3. Export the temporary credentials (AccessKeyId, SecretAccessKey, SessionToken) from step 2"
-log "  4. Use those session credentials to run Terragrunt stacks for Control Tower, OUs, deployment account"
-log "  5. Create GitHub OIDC provider + role in deployment account for CI/CD"
-log "  6. Delete terraform-init-user access keys once OIDC handoff is complete"
+# Ensure access keys exist for terraform-init-user
+CREDENTIALS_FILE="${HOME}/.aws/credentials"
+PROFILE_NAME="terraform-init"
+EXISTING_ACCESS_KEY_ID=""
 
+# Check if we already have credentials configured
+if [[ -f "${CREDENTIALS_FILE}" ]]; then
+  EXISTING_ACCESS_KEY_ID=$(grep -A 2 "^\[${PROFILE_NAME}\]" "${CREDENTIALS_FILE}" 2>/dev/null | grep "aws_access_key_id" | cut -d= -f2 | tr -d ' ' || echo "")
+fi
+
+# Verify if the existing key is still active
+if [[ -n "${EXISTING_ACCESS_KEY_ID}" ]]; then
+  set +e
+  KEY_STATUS=$(aws iam list-access-keys "${AWS_ARGS[@]}" --user-name terraform-init-user --query "AccessKeyMetadata[?AccessKeyId=='${EXISTING_ACCESS_KEY_ID}'].Status" --output text 2>/dev/null)
+  set -e
+
+  if [[ "${KEY_STATUS}" == "Active" ]]; then
+    log "Access key already configured in ~/.aws/credentials profile: ${PROFILE_NAME}"
+  else
+    EXISTING_ACCESS_KEY_ID=""
+  fi
+fi
+
+# Create new access key if needed
+if [[ -z "${EXISTING_ACCESS_KEY_ID}" ]]; then
+  # Delete old keys if at limit (max 2 per user)
+  set +e
+  KEY_COUNT=$(aws iam list-access-keys "${AWS_ARGS[@]}" --user-name terraform-init-user --query 'length(AccessKeyMetadata)' --output text 2>/dev/null || echo "0")
+  set -e
+
+  if [[ "${KEY_COUNT}" -ge 2 ]]; then
+    log "Deleting oldest access key to make room for new one..."
+    OLDEST_KEY=$(aws iam list-access-keys "${AWS_ARGS[@]}" --user-name terraform-init-user --query 'sort_by(AccessKeyMetadata, &CreateDate)[0].AccessKeyId' --output text)
+    aws iam delete-access-key "${AWS_ARGS[@]}" --user-name terraform-init-user --access-key-id "${OLDEST_KEY}"
+    log "Deleted access key: ${OLDEST_KEY}"
+  fi
+
+  # Create new access key
+  NEW_KEY_JSON=$(aws iam create-access-key "${AWS_ARGS[@]}" --user-name terraform-init-user --output json)
+  NEW_ACCESS_KEY_ID=$(echo "${NEW_KEY_JSON}" | jq -r '.AccessKey.AccessKeyId')
+  NEW_SECRET_ACCESS_KEY=$(echo "${NEW_KEY_JSON}" | jq -r '.AccessKey.SecretAccessKey')
+
+  log "Created new access key: ${NEW_ACCESS_KEY_ID}"
+
+  # Ensure credentials file exists
+  mkdir -p "${HOME}/.aws"
+  touch "${CREDENTIALS_FILE}"
+  chmod 600 "${CREDENTIALS_FILE}"
+
+  # Remove old profile if exists
+  if grep -q "^\[${PROFILE_NAME}\]" "${CREDENTIALS_FILE}" 2>/dev/null; then
+    # Use sed to delete the profile section
+    sed -i "/^\[${PROFILE_NAME}\]/,/^$/d" "${CREDENTIALS_FILE}"
+  fi
+
+  # Add new credentials
+  cat >> "${CREDENTIALS_FILE}" << EOF
+
+[${PROFILE_NAME}]
+aws_access_key_id = ${NEW_ACCESS_KEY_ID}
+aws_secret_access_key = ${NEW_SECRET_ACCESS_KEY}
+EOF
+
+  log "Configured credentials in ~/.aws/credentials profile: ${PROFILE_NAME}"
+fi
+
+# Now assume the role and export session credentials for Terraform
+log "Assuming bootstrap role for Terraform backend access..."
+
+# Wait a moment for access key propagation
+sleep 2
+
+set +e
+ASSUME_ROLE_OUTPUT=$(AWS_PROFILE="${PROFILE_NAME}" aws sts assume-role \
+  --role-arn "${ROLE_ARN}" \
+  --role-session-name "bootstrap-session-$$" \
+  --external-id "terraform-bootstrap" \
+  --duration-seconds 3600 \
+  --output json 2>&1)
+ASSUME_EXIT_CODE=$?
+set -e
+
+if [[ ${ASSUME_EXIT_CODE} -ne 0 ]]; then
+  log "ERROR: Failed to assume role: ${ASSUME_ROLE_OUTPUT}"
+  log "You may need to wait a few seconds for access key propagation, then run: source scripts/assume-bootstrap-role.sh"
+  exit 1
+fi
+
+# Write session credentials to a temporary profile that Terraform can use
+SESSION_ACCESS_KEY_ID=$(echo "${ASSUME_ROLE_OUTPUT}" | jq -r '.Credentials.AccessKeyId')
+SESSION_SECRET_ACCESS_KEY=$(echo "${ASSUME_ROLE_OUTPUT}" | jq -r '.Credentials.SecretAccessKey')
+SESSION_TOKEN=$(echo "${ASSUME_ROLE_OUTPUT}" | jq -r '.Credentials.SessionToken')
+SESSION_EXPIRY=$(echo "${ASSUME_ROLE_OUTPUT}" | jq -r '.Credentials.Expiration')
+
+# Update or create terraform-bootstrap profile with session credentials
+BOOTSTRAP_PROFILE="terraform-bootstrap"
+
+# Remove old bootstrap profile if exists
+if grep -q "^\[${BOOTSTRAP_PROFILE}\]" "${CREDENTIALS_FILE}" 2>/dev/null; then
+  sed -i "/^\[${BOOTSTRAP_PROFILE}\]/,/^$/d" "${CREDENTIALS_FILE}"
+fi
+
+# Add session credentials
+cat >> "${CREDENTIALS_FILE}" << EOF
+
+[${BOOTSTRAP_PROFILE}]
+aws_access_key_id = ${SESSION_ACCESS_KEY_ID}
+aws_secret_access_key = ${SESSION_SECRET_ACCESS_KEY}
+aws_session_token = ${SESSION_TOKEN}
+EOF
+
+log "✓ Bootstrap role assumed successfully (expires: ${SESSION_EXPIRY})"
+log "✓ Session credentials saved to profile: ${BOOTSTRAP_PROFILE}"
+log "✓ Run: export AWS_PROFILE=${BOOTSTRAP_PROFILE} (or set profile in root.hcl)"
+
+log "Bootstrap role configured with scoped permissions for Control Tower + landing zone setup"
 log "State backend ready for key '${STATE_KEY}'"
