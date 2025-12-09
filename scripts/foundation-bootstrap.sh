@@ -14,6 +14,12 @@ log() {
   echo "[bootstrap-state] $*"
 }
 
+# Skip bootstrap in CI/CD environments - infrastructure should already be set up
+if [[ -n "${CI:-}" ]]; then
+  log "Running in CI environment; skipping bootstrap (infrastructure assumed to be already set up)."
+  exit 0
+fi
+
 if [[ -z "${PROVIDER}" ]]; then
   log "No cloud provider supplied to bootstrap-state hook"
   exit 1
