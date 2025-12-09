@@ -1,0 +1,20 @@
+# Terraform
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+terraform.tfvars
+terraform.tfvars.json
+override.tf
+override.tf.json
+.terraform/
+.terraform.lock.hcl
+
+# Terragrunt
+.terragrunt-cache/
+*.terragrunt-cache/
+
+# Local tooling
+.DS_Store
+.idea/
+.vscode/
