@@ -71,6 +71,22 @@ resource "aws_iam_policy" "github_actions_boundary" {
         ]
       },
       {
+        Sid    = "AllowManageSelfIAM"
+        Effect = "Allow"
+        Action = [
+          "iam:Get*",
+          "iam:List*",
+          "iam:UpdateOpenIDConnectProviderThumbprint",
+          "iam:TagOpenIDConnectProvider",
+          "iam:UntagOpenIDConnectProvider",
+          "iam:PutRolePolicy",
+          "iam:DeleteRolePolicy",
+          "iam:TagRole",
+          "iam:UntagRole"
+        ]
+        Resource = "*"
+      },
+      {
         Sid    = "DenyBoundaryModification"
         Effect = "Deny"
         Action = [
@@ -175,6 +191,30 @@ resource "aws_iam_role_policy" "github_actions_deployment" {
         Resource = [
           "arn:aws:s3:::${var.state_bucket_name}",
           "arn:aws:s3:::${var.state_bucket_name}/*"
+        ]
+      },
+      {
+        Sid    = "ManageSelfIAMResources"
+        Effect = "Allow"
+        Action = [
+          "iam:GetOpenIDConnectProvider",
+          "iam:UpdateOpenIDConnectProviderThumbprint",
+          "iam:TagOpenIDConnectProvider",
+          "iam:UntagOpenIDConnectProvider",
+          "iam:GetPolicy",
+          "iam:GetPolicyVersion",
+          "iam:ListPolicyVersions",
+          "iam:GetRole",
+          "iam:GetRolePolicy",
+          "iam:PutRolePolicy",
+          "iam:DeleteRolePolicy",
+          "iam:TagRole",
+          "iam:UntagRole"
+        ]
+        Resource = [
+          aws_iam_openid_connect_provider.github.arn,
+          aws_iam_policy.github_actions_boundary.arn,
+          aws_iam_role.github_actions.arn
         ]
       }
     ]
