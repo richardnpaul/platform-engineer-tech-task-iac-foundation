@@ -1,0 +1,152 @@
+name: Destroy Dev Infrastructure
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: 'Type "destroy-dev-infrastructure" to confirm'
+        required: true
+        type: string
+      stacks_to_destroy:
+        description: 'Which stacks to destroy'
+        required: true
+        type: choice
+        options:
+          - 'all'
+          - 'eks-only'
+          - 'vpc-only'
+        default: 'all'
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: eu-west-1
+  TERRAGRUNT_VERSION: 0.94.0
+  TERRAFORM_VERSION: 1.14.1
+  TG_CLOUD: aws
+
+jobs:
+  confirm-destruction:
+    name: Confirm Destruction
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Validate confirmation phrase
+        run: |
+          if [ "${{ github.event.inputs.confirmation }}" != "destroy-dev-infrastructure" ]; then
+            echo "❌ Confirmation phrase does not match. Expected: 'destroy-dev-infrastructure'"
+            echo "Received: '${{ github.event.inputs.confirmation }}'"
+            exit 1
+          fi
+          echo "✅ Confirmation validated"
+
+      - name: Display destruction plan
+        run: |
+          echo "🔥 DESTRUCTION PLAN 🔥"
+          echo "====================="
+          echo "Stacks to destroy: ${{ github.event.inputs.stacks_to_destroy }}"
+          echo "Triggered by: ${{ github.actor }}"
+          echo "Timestamp: $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+          echo ""
+          if [ "${{ github.event.inputs.stacks_to_destroy }}" == "all" ]; then
+            echo "The following will be DESTROYED:"
+            echo "  1. Dev EKS Apps Cluster"
+            echo "  2. Dev EKS Management Cluster"
+            echo "  3. Dev VPC (including NAT Gateway and ALB)"
+            echo ""
+            echo "⚠️  This will completely tear down the dev environment!"
+          elif [ "${{ github.event.inputs.stacks_to_destroy }}" == "eks-only" ]; then
+            echo "The following will be DESTROYED:"
+            echo "  1. Dev EKS Apps Cluster"
+            echo "  2. Dev EKS Management Cluster"
+            echo ""
+            echo "VPC will remain (NAT Gateway and ALB continue incurring costs)"
+          elif [ "${{ github.event.inputs.stacks_to_destroy }}" == "vpc-only" ]; then
+            echo "The following will be DESTROYED:"
+            echo "  1. Dev VPC (including NAT Gateway and ALB)"
+            echo ""
+            echo "⚠️  EKS clusters must be destroyed first!"
+          fi
+
+  destroy-infrastructure:
+    name: Destroy Infrastructure
+    runs-on: ubuntu-24.04
+    needs: confirm-destruction
+    environment: production
+
+    env:
+      TF_VAR_dev_email: ${{ secrets.DEV_ACCOUNT_EMAIL }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: arn:aws:iam::793421532223:role/GitHubActionsDeploymentRole
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: github-actions-destroy-${{ github.run_id }}
+
+      - name: Verify AWS identity
+        run: |
+          aws sts get-caller-identity
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+
+      - name: Setup Terragrunt
+        run: |
+          wget -q https://github.com/gruntwork-io/terragrunt/releases/download/v${{ env.TERRAGRUNT_VERSION }}/terragrunt_linux_amd64
+          chmod +x terragrunt_linux_amd64
+          sudo mv terragrunt_linux_amd64 /usr/local/bin/terragrunt
+          terragrunt --version
+
+      - name: Destroy Dev EKS Apps Cluster
+        if: github.event.inputs.stacks_to_destroy == 'all' || github.event.inputs.stacks_to_destroy == 'eks-only'
+        working-directory: environments/aws/dev/eks-apps
+        run: |
+          echo "🔥 Destroying Dev EKS Apps Cluster..."
+          terragrunt destroy -auto-approve
+        continue-on-error: false
+
+      - name: Destroy Dev EKS Management Cluster
+        if: github.event.inputs.stacks_to_destroy == 'all' || github.event.inputs.stacks_to_destroy == 'eks-only'
+        working-directory: environments/aws/dev/eks-mgmt
+        run: |
+          echo "🔥 Destroying Dev EKS Management Cluster..."
+          terragrunt destroy -auto-approve
+        continue-on-error: false
+
+      - name: Destroy Dev VPC
+        if: github.event.inputs.stacks_to_destroy == 'all' || github.event.inputs.stacks_to_destroy == 'vpc-only'
+        working-directory: environments/aws/dev/vpc
+        run: |
+          echo "🔥 Destroying Dev VPC..."
+          terragrunt destroy -auto-approve
+        continue-on-error: false
+
+      - name: Summary
+        if: success()
+        run: |
+          echo "============================================"
+          echo "Destruction Summary"
+          echo "============================================"
+          echo "Stacks destroyed: ${{ github.event.inputs.stacks_to_destroy }}"
+          echo "Triggered by: ${{ github.actor }}"
+          echo "Completed at: $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+          echo ""
+          if [ "${{ github.event.inputs.stacks_to_destroy }}" == "all" ]; then
+            echo "✅ Dev environment fully destroyed"
+            echo "💰 Cost savings: ~\$194/month"
+          elif [ "${{ github.event.inputs.stacks_to_destroy }}" == "eks-only" ]; then
+            echo "✅ EKS clusters destroyed"
+            echo "💰 Cost savings: ~\$146/month"
+            echo "⚠️  VPC still running (~\$48/month)"
+          fi
+          echo ""
+          echo "To rebuild: Create a PR with infrastructure code"

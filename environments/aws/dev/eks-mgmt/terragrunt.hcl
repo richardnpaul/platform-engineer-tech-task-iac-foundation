@@ -9,6 +9,17 @@ include "root" {
 
 dependency "vpc" {
   config_path = "../vpc"
+
+  mock_outputs = {
+    vpc_id                 = "vpc-mock123456"
+    private_subnet_list    = ["subnet-mock1", "subnet-mock2"]
+    alb_security_group_id  = "sg-mock123456"
+    target_group_arns      = {
+      mgmt = "arn:aws:elasticloadbalancing:us-east-1:123456789012:targetgroup/mock-mgmt/1234567890123456"
+      apps = "arn:aws:elasticloadbalancing:us-east-1:123456789012:targetgroup/mock-apps/1234567890123456"
+    }
+  }
+  mock_outputs_allowed_terraform_commands = ["validate", "plan", "init"]
 }
 
 locals {
