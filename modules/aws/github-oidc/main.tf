@@ -206,6 +206,7 @@ resource "aws_iam_role_policy" "github_actions_deployment" {
           "iam:ListPolicyVersions",
           "iam:GetRole",
           "iam:GetRolePolicy",
+          "iam:ListRolePolicies",
           "iam:PutRolePolicy",
           "iam:DeleteRolePolicy",
           "iam:TagRole",
