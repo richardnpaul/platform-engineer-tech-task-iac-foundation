@@ -1,8 +1,3 @@
-variable "organization_root_id" {
-  description = "The ID of the Organization root (r-xxxx)"
-  type        = string
-}
-
 variable "log_archive_email" {
   description = "Email address for the Log Archive account"
   type        = string

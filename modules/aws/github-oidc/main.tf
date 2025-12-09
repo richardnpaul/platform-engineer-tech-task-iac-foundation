@@ -143,6 +143,7 @@ resource "aws_iam_role_policy" "github_actions_deployment" {
         Action = [
           "organizations:DescribeOrganization",
           "organizations:ListAccounts",
+          "organizations:ListRoots",
           "organizations:ListOrganizationalUnitsForParent",
           "organizations:DescribeOrganizationalUnit"
         ]

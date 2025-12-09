@@ -20,22 +20,29 @@ terraform {
   }
 }
 
+# Get the organization root ID
+data "aws_organizations_organization" "current" {}
+
+locals {
+  organization_root_id = data.aws_organizations_organization.current.roots[0].id
+}
+
 # Root Organizational Units
 resource "aws_organizations_organizational_unit" "security" {
   name      = "Security"
-  parent_id = var.organization_root_id
+  parent_id = local.organization_root_id
   tags      = var.tags
 }
 
 resource "aws_organizations_organizational_unit" "infrastructure" {
   name      = "Infrastructure"
-  parent_id = var.organization_root_id
+  parent_id = local.organization_root_id
   tags      = var.tags
 }
 
 resource "aws_organizations_organizational_unit" "workloads" {
   name      = "Workloads"
-  parent_id = var.organization_root_id
+  parent_id = local.organization_root_id
   tags      = var.tags
 }
 

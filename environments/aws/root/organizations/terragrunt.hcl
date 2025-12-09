@@ -6,11 +6,6 @@ locals {
   environment = "production"
   aws_region  = "eu-west-1"
 
-  # Get organization root ID
-  # Use profile in local dev, default credentials in CI/CD (OIDC)
-  aws_profile_arg = get_env("CI", "") == "" ? "--profile terraform-bootstrap" : ""
-  organization_root_id = run_cmd("--terragrunt-quiet", "bash", "-c", "aws organizations list-roots ${local.aws_profile_arg} --query 'Roots[0].Id' --output text")
-
   tags = {
     Environment  = local.environment
     ManagedBy    = "Terragrunt"
@@ -24,9 +19,8 @@ terraform {
 }
 
 inputs = {
-  organization_root_id = local.organization_root_id
-  environment          = local.environment
-  tags                 = local.tags
+  environment = local.environment
+  tags        = local.tags
 
   # Core account email addresses
   # Note: These must be unique across ALL AWS accounts globally
