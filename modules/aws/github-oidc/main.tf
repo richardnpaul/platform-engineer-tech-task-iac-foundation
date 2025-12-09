@@ -160,7 +160,8 @@ resource "aws_iam_role_policy" "github_actions_deployment" {
           "organizations:ListAccounts",
           "organizations:ListRoots",
           "organizations:ListOrganizationalUnitsForParent",
-          "organizations:DescribeOrganizationalUnit"
+          "organizations:DescribeOrganizationalUnit",
+          "organizations:ListAWSServiceAccessForOrganization"
         ]
         Resource = "*"
       },
