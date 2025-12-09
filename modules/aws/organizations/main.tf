@@ -92,3 +92,20 @@ resource "aws_organizations_account" "deployment" {
     prevent_destroy = true
   }
 }
+
+# Development/Test Account
+resource "aws_organizations_account" "dev" {
+  name      = "Development"
+  email     = var.dev_email
+  parent_id = aws_organizations_organizational_unit.workloads.id
+
+  role_name = "OrganizationAccountAccessRole"
+  tags = merge(var.tags, {
+    Purpose     = "Development and testing workloads"
+    Environment = "dev"
+  })
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
