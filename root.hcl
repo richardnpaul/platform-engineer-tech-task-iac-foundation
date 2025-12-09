@@ -13,10 +13,9 @@ locals {
           region       = get_env("TG_STATE_REGION", local.default_region)
           encrypt      = true
           use_lockfile = true
-          # Use terraform-bootstrap profile by default (created by bootstrap-state.sh)
-          # Override with AWS_PROFILE env var if needed
-          profile      = get_env("AWS_PROFILE", "terraform-bootstrap")
-        }
+        },
+        # Use terraform-bootstrap profile locally, omit profile in CI (uses OIDC credentials)
+        get_env("CI", "") == "" ? { profile = get_env("AWS_PROFILE", "terraform-bootstrap") } : {}
       )
     }
     gcp = {
