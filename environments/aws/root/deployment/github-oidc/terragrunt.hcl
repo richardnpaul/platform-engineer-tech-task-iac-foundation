@@ -43,6 +43,9 @@ inputs = {
   role_name        = "GitHubActionsDeploymentRole"
   session_duration = 14400 # 4 hours
 
+  # S3 bucket for Terraform state
+  state_bucket_name = "iac-foundation-tf-state"
+
   # External ID for cross-account role assumption (change this to a secure random value)
   external_id = "github-actions-deployment-2025"
 

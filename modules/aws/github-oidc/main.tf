@@ -148,6 +148,21 @@ resource "aws_iam_role_policy" "github_actions_deployment" {
           "organizations:DescribeOrganizationalUnit"
         ]
         Resource = "*"
+      },
+      {
+        Sid    = "TerraformStateAccess"
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject",
+          "s3:ListBucket",
+          "s3:GetBucketVersioning"
+        ]
+        Resource = [
+          "arn:aws:s3:::${var.state_bucket_name}",
+          "arn:aws:s3:::${var.state_bucket_name}/*"
+        ]
       }
     ]
   })

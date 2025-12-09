@@ -43,6 +43,11 @@ variable "external_id" {
   sensitive   = true
 }
 
+variable "state_bucket_name" {
+  description = "Name of the S3 bucket used for Terraform state storage"
+  type        = string
+}
+
 variable "tags" {
   description = "Common tags to apply to all resources"
   type        = map(string)
