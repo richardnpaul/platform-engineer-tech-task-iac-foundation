@@ -11,7 +11,7 @@ include "root" {
 
 locals {
   environment = "dev"
-  region      = "us-east-1"
+  region      = "eu-west-1"
 
   tags = {
     Environment = "dev"
@@ -31,16 +31,16 @@ inputs = {
 
   # Public subnets for ALB and NAT Gateway (across 2 AZs for HA)
   public_subnets = {
-    us-east-1a = {
+    eu-west-1a = {
       cidr = "10.0.1.0/24"
-      az   = "us-east-1a"
+      az   = "eu-west-1a"
       tags = {
         "kubernetes.io/role/elb" = "1"
       }
     }
-    us-east-1b = {
+    eu-west-1b = {
       cidr = "10.0.2.0/24"
-      az   = "us-east-1b"
+      az   = "eu-west-1b"
       tags = {
         "kubernetes.io/role/elb" = "1"
       }
@@ -49,16 +49,16 @@ inputs = {
 
   # Private subnets for Fargate pods (across 2 AZs for HA)
   private_subnets = {
-    us-east-1a = {
+    eu-west-1a = {
       cidr = "10.0.101.0/24"
-      az   = "us-east-1a"
+      az   = "eu-west-1a"
       tags = {
         "kubernetes.io/role/internal-elb" = "1"
       }
     }
-    us-east-1b = {
+    eu-west-1b = {
       cidr = "10.0.102.0/24"
-      az   = "us-east-1b"
+      az   = "eu-west-1b"
       tags = {
         "kubernetes.io/role/internal-elb" = "1"
       }

@@ -1,0 +1,71 @@
+name: Deploy Demo App
+
+on:
+  workflow_dispatch:
+  repository_dispatch:
+    types: [deploy-demo-app]
+
+permissions:
+  id-token: write
+  contents: write
+
+env:
+  AWS_REGION: eu-west-1
+  ECR_REPOSITORY: dev-app-repo
+  IMAGE_TAG: ${{ github.sha }}
+  AWS_ACCOUNT_ID: 793421532223
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout Infrastructure Repo
+        uses: actions/checkout@v4
+
+      - name: Checkout App Repo
+        uses: actions/checkout@v4
+        with:
+          repository: richardnpaul/platform-engineer-tech-task - iac-foundation
+          path: app-source
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/GitHubActionsDeploymentRole
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, and push image to Amazon ECR
+        id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        working-directory: app-source
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+      - name: Update Kubernetes Manifest
+        run: |
+          cd k8s/manifests/demo-app
+          # Update the image tag in deployment.yaml
+          # Matches: image: <repo-url>:<tag>
+          sed -i "s|image: .*|image: ${{ steps.build-image.outputs.image }}|g" deployment.yaml
+
+          # Check if there are changes
+          if git diff --quiet deployment.yaml; then
+            echo "No changes to deployment manifest"
+            exit 0
+          fi
+
+          # Config git
+          git config user.name "GitHub Actions Bot"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Commit and push
+          git add deployment.yaml
+          git commit -m "deploy: update demo-app image to $IMAGE_TAG"
+          git push

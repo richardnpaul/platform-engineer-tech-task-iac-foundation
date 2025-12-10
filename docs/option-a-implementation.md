@@ -36,7 +36,7 @@ Implemented **Option A: Shared ALB in VPC module** with the following architectu
 │                                                 │
 │  ┌───────────────┐          ┌───────────────┐   │
 │  │ Public Subnet │          │ Public Subnet │   │
-│  │  us-east-1a   │          │  us-east-1b   │   │
+│  │  eu-west-1a   │          │  eu-west-1b   │   │
 │  │ 10.0.1.0/24   │          │ 10.0.2.0/24   │   │
 │  └───────┬───────┘          └───────┬───────┘   │
 │          │                          │           │
@@ -57,7 +57,7 @@ Implemented **Option A: Shared ALB in VPC module** with the following architectu
 │         │                      │                │
 │  ┌──────▼──────────┐    ┌──────▼──────────┐     │
 │  │ Private Subnet  │    │ Private Subnet  │     │
-│  │  us-east-1a     │    │  us-east-1b     │     │
+│  │  eu-west-1a     │    │  eu-west-1b     │     │
 │  │ 10.0.101.0/24   │    │ 10.0.102.0/24   │     │
 │  └─────────────────┘    └─────────────────┘     │
 │         │                      │                │

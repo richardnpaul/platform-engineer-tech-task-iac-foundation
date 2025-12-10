@@ -1,3 +1,8 @@
+variable "environment" {
+  description = "Name of the environment that we're running in"
+  type        = string
+}
+
 variable "cluster_name" {
   description = "Name of the EKS cluster"
   type        = string
@@ -6,17 +11,39 @@ variable "cluster_name" {
 variable "kubernetes_version" {
   description = "Kubernetes version for EKS cluster"
   type        = string
-  default     = "1.31"
+  default     = "1.34"
 }
 
+# Option 1: Pass VPC/subnet IDs directly (original approach)
 variable "vpc_id" {
-  description = "VPC ID where the cluster will be created"
+  description = "VPC ID where the cluster will be created (optional if vpc_name is provided)"
   type        = string
+  default     = null
 }
 
 variable "subnet_ids" {
-  description = "List of subnet IDs for EKS cluster and Fargate pods"
+  description = "List of subnet IDs for EKS cluster and Fargate pods (optional if subnet tags provided)"
   type        = list(string)
+  default     = null
+}
+
+# Option 2: Lookup by name/tags using data sources
+variable "vpc_name" {
+  description = "Name of VPC to lookup (alternative to vpc_id)"
+  type        = string
+  default     = null
+}
+
+variable "private_subnet_tags" {
+  description = "Tags to filter private subnets (alternative to subnet_ids)"
+  type        = map(string)
+  default     = null
+}
+
+variable "enable_alb_integration" {
+  description = "Whether to create security group rules for ALB integration"
+  type        = bool
+  default     = false
 }
 
 variable "alb_security_group_id" {
@@ -26,7 +53,19 @@ variable "alb_security_group_id" {
 }
 
 variable "alb_target_group_arn" {
-  description = "ARN of the ALB target group to associate with this cluster (optional)"
+  description = "ARN of the ALB target group to associate with this cluster (optional if alb_target_group_name provided)"
+  type        = string
+  default     = null
+}
+
+variable "alb_target_group_name" {
+  description = "Name of ALB target group to lookup (alternative to alb_target_group_arn)"
+  type        = string
+  default     = null
+}
+
+variable "alb_name" {
+  description = "Name of ALB to lookup security group (optional)"
   type        = string
   default     = null
 }

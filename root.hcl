@@ -4,6 +4,11 @@ locals {
   state_prefix   = path_relative_to_include()
   default_region = "eu-west-1"
 
+  # Include environment in state key to prevent state conflicts between environments
+  # When using environment parameterization, TF_VAR_environment is set by CI/CD or locally
+  # Falls back to "default" for stacks that don't use environment parameterization
+  environment    = get_env("TF_VAR_environment", "default")
+
   backend_definitions = {
     aws = {
       backend = "s3"
@@ -31,7 +36,7 @@ locals {
       backend = "azurerm"
       config = {
         resource_group_name  = get_env("TG_AZURE_RG", "iac-tfstate-rg")
-        storage_account_name = get_env("TG_AZURE_STORAGE", "iacstate0001")
+        storage_account_name = get_env("TG_AZURE_STORAGE", "iac-state-0001")
         container_name       = get_env("TG_AZURE_CONTAINER", "tfstate")
         key                  = ""
         subscription_id      = get_env("ARM_SUBSCRIPTION_ID", "")
@@ -41,7 +46,13 @@ locals {
   }
 
   selected_backend = try(local.backend_definitions[local.cloud_provider], local.backend_definitions.aws)
-  state_key        = "${local.project_name}/${local.state_prefix}/terraform.tfstate"
+
+  # State key includes environment to isolate state files
+  # Examples:
+  #   iac-foundation/dev/infrastructure/terraform.tfstate
+  #   iac-foundation/staging/infrastructure/terraform.tfstate
+  #   iac-foundation/default/root/organizations/terraform.tfstate (for non-env stacks)
+  state_key = "${local.project_name}/${local.environment}/${local.state_prefix}/terraform.tfstate"
 
   backend_key_attribute = local.selected_backend.backend == "gcs" ? "prefix" : "key"
 

@@ -7,30 +7,16 @@ include "root" {
   path = find_in_parent_folders("root.hcl")
 }
 
-dependency "vpc" {
-  config_path = "../vpc"
-
-  mock_outputs = {
-    vpc_id                 = "vpc-mock123456"
-    private_subnet_list    = ["subnet-mock1", "subnet-mock2"]
-    alb_security_group_id  = "sg-mock123456"
-    target_group_arns      = {
-      mgmt = "arn:aws:elasticloadbalancing:us-east-1:123456789012:targetgroup/mock-mgmt/1234567890123456"
-      apps = "arn:aws:elasticloadbalancing:us-east-1:123456789012:targetgroup/mock-apps/1234567890123456"
-    }
-  }
-  mock_outputs_allowed_terraform_commands = ["validate", "plan", "init"]
-}
-
 locals {
-  environment = "dev"
-  region      = "us-east-1"
+  environment = get_env("TF_VAR_environment")
+  region      = "eu-west-1"
+  cluster     = "mgmt-cluster"
 
   tags = {
-    Environment = "dev"
+    Environment = local.environment
     ManagedBy   = "terraform"
     Purpose     = "argocd-management"
-    Cluster     = "mgmt-cluster"
+    Cluster     = local.cluster
     Project     = "platform-foundation"
   }
 }
@@ -40,16 +26,17 @@ terraform {
 }
 
 inputs = {
-  cluster_name       = "dev-mgmt-cluster"
-  kubernetes_version = "1.31"
+  environment        = local.environment
+  cluster_name       = local.cluster
+  kubernetes_version = "1.34"
 
-  # Use shared VPC
-  vpc_id     = dependency.vpc.outputs.vpc_id
-  subnet_ids = dependency.vpc.outputs.private_subnet_list
-
-  # Connect to shared ALB
-  alb_security_group_id = dependency.vpc.outputs.alb_security_group_id
-  alb_target_group_arn  = dependency.vpc.outputs.target_group_arns["mgmt"]
+  vpc_name           = "shared-vpc"
+  private_subnet_tags = {
+    "kubernetes.io/role/internal-elb" = "1"
+    "Environment" = local.environment
+  }
+  alb_target_group_name = "mgmt-tg"
+  alb_name              = "shared-alb"
 
   # Fargate namespaces
   fargate_namespaces = [

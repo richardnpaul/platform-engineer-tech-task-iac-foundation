@@ -79,7 +79,7 @@ terragrunt apply
 
 ```bash
 # Configure kubectl
-aws eks update-kubeconfig --name dev-mgmt-cluster --region us-east-1
+aws eks update-kubeconfig --name dev-mgmt-cluster --region eu-west-1
 
 # Install AWS Load Balancer Controller
 # (See docs/dev-deployment-guide.md for detailed steps)
@@ -293,7 +293,6 @@ The foundation is cloud-agnostic and can be extended to GCP/Azure:
 - Add staging and production accounts
 - Implement Prometheus/Grafana monitoring
 - Configure External Secrets Operator
-- Set up Velero for cluster backups
 - Add network policies for pod security
 
 ### Long-term
