@@ -115,6 +115,31 @@ jobs:
           retention-days: 7  # Only keep artifacts around for 7 days
           if-no-files-found: warn
 
+      - name: Upload plans to S3
+        if: success()
+        run: |
+          PLAN_BUCKET="iac-foundation-tf-state"
+          PLAN_KEY="terraform-plans/${{ github.event.pull_request.number }}/${{ github.sha }}"
+
+          echo "📤 Uploading plans to S3: ${PLAN_BUCKET}/${PLAN_KEY}/"
+
+          # Upload all plan files to S3 with flat structure
+          aws s3 cp environments/aws/root/deployment/github-oidc/tfplan.binary \
+            s3://${PLAN_BUCKET}/${PLAN_KEY}/github-oidc.tfplan.binary || true
+
+          aws s3 cp environments/aws/dev/vpc/tfplan.binary \
+            s3://${PLAN_BUCKET}/${PLAN_KEY}/vpc.tfplan.binary || true
+
+          aws s3 cp environments/aws/dev/eks-mgmt/tfplan.binary \
+            s3://${PLAN_BUCKET}/${PLAN_KEY}/eks-mgmt.tfplan.binary || true
+
+          aws s3 cp environments/aws/dev/eks-apps/tfplan.binary \
+            s3://${PLAN_BUCKET}/${PLAN_KEY}/eks-apps.tfplan.binary || true
+
+          echo "✅ Plans uploaded to s3://${PLAN_BUCKET}/${PLAN_KEY}/"
+        env:
+          AWS_REGION: eu-west-1
+
       - name: Comment PR with plan
         uses: actions/github-script@v8
         if: github.event_name == 'pull_request'
@@ -175,7 +200,8 @@ jobs:
             </details>
 
             ---
-            **Plan artifact:** \`${{ env.PLAN_ARTIFACT_NAME }}\`
+            **Plan artifact:** \`${{ env.PLAN_ARTIFACT_NAME }}\` (7-day retention)
+            **Plan S3 location:** \`s3://iac-foundation-tf-state/terraform-plans/${{ github.event.pull_request.number }}/${{ github.sha }}/\` (14-day lifecycle)
             **Deployment order:** Organizations (manual) → GitHub OIDC → Dev VPC → Dev EKS Mgmt → Dev EKS Apps
             **Note:** Organizations stack is managed locally with admin credentials for security.
             *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Workflow: \`${{ github.workflow }}\`*`;
@@ -200,11 +226,19 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
 
-      - name: Download plan artifacts
-        uses: actions/download-artifact@v6
-        with:
-          name: ${{ env.PLAN_ARTIFACT_NAME }}
-          path: .
+      - name: Extract PR number from merge commit
+        id: pr_number
+        run: |
+          # Extract PR number from merge commit message
+          PR_NUM=$(git log -1 --pretty=%B | grep -oP 'Merge pull request #\K\d+' || echo "")
+
+          if [ -z "$PR_NUM" ]; then
+            echo "⚠️  Could not extract PR number from merge commit"
+            echo "pr_number=" >> $GITHUB_OUTPUT
+          else
+            echo "✅ Found PR number: $PR_NUM"
+            echo "pr_number=$PR_NUM" >> $GITHUB_OUTPUT
+          fi
 
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v5
@@ -230,12 +264,31 @@ jobs:
           sudo mv terragrunt_linux_amd64 /usr/local/bin/terragrunt
           terragrunt --version
 
-      - name: Verify plan files exist
+      - name: Download plans from S3
+        if: steps.pr_number.outputs.pr_number != ''
         run: |
-          ls -lh environments/aws/root/deployment/github-oidc/tfplan.binary
-          ls -lh environments/aws/dev/vpc/tfplan.binary || echo "VPC plan not found"
-          ls -lh environments/aws/dev/eks-mgmt/tfplan.binary || echo "EKS mgmt plan not found"
-          ls -lh environments/aws/dev/eks-apps/tfplan.binary || echo "EKS apps plan not found"
+          PR_NUM="${{ steps.pr_number.outputs.pr_number }}"
+          COMMIT_SHA="${{ github.sha }}"
+          PLAN_BUCKET="iac-foundation-tf-state"
+          S3_PATH="s3://${PLAN_BUCKET}/terraform-plans/${PR_NUM}/${COMMIT_SHA}/"
+
+          # Create directories for plans
+          mkdir -p environments/aws/root/deployment/github-oidc \
+            environments/aws/dev/vpc \
+            environments/aws/dev/eks-mgmt \
+            environments/aws/dev/eks-apps
+
+          aws s3 cp "${S3_PATH}github-oidc.tfplan.binary" environments/aws/root/deployment/github-oidc/tfplan.binary || echo "⚠️  github-oidc plan not found" && exit 1
+          aws s3 cp "${S3_PATH}vpc.tfplan.binary" environments/aws/dev/vpc/tfplan.binary || echo "⚠️  vpc plan not found" && exit 1
+          aws s3 cp "${S3_PATH}eks-mgmt.tfplan.binary" environments/aws/dev/eks-mgmt/tfplan.binary || echo "⚠️  eks-mgmt plan not found" && exit 1
+          aws s3 cp "${S3_PATH}eks-apps.tfplan.binary" environments/aws/dev/eks-apps/tfplan.binary || echo "⚠️  eks-apps plan not found" && exit 1
+
+          ls -lh environments/aws/root/deployment/github-oidc/tfplan.binary 2>/dev/null || echo "⚠️ - github-oidc: not found" && exit 1
+          ls -lh environments/aws/dev/vpc/tfplan.binary 2>/dev/null || echo "⚠️ - vpc: not found" && exit 1
+          ls -lh environments/aws/dev/eks-mgmt/tfplan.binary 2>/dev/null || echo "⚠️ - eks-mgmt: not found" && exit 1
+          ls -lh environments/aws/dev/eks-apps/tfplan.binary 2>/dev/null || echo "⚠️ - eks-apps: not found" && exit 1
+        env:
+          AWS_REGION: eu-west-1
 
       - name: Terragrunt Apply - GitHub OIDC
         working-directory: environments/aws/root/deployment/github-oidc
@@ -245,29 +298,17 @@ jobs:
       - name: Terragrunt Apply - Dev VPC
         working-directory: environments/aws/dev/vpc
         run: |
-          if [ -f tfplan.binary ]; then
-            terragrunt apply tfplan.binary
-          else
-            echo "VPC plan not found, skipping apply"
-          fi
+          terragrunt apply tfplan.binary
         continue-on-error: false
 
       - name: Terragrunt Apply - Dev EKS Management
         working-directory: environments/aws/dev/eks-mgmt
         run: |
-          if [ -f tfplan.binary ]; then
-            terragrunt apply tfplan.binary
-          else
-            echo "EKS mgmt plan not found, skipping apply"
-          fi
+          terragrunt apply tfplan.binary
         continue-on-error: false
 
       - name: Terragrunt Apply - Dev EKS Apps
         working-directory: environments/aws/dev/eks-apps
         run: |
-          if [ -f tfplan.binary ]; then
-            terragrunt apply tfplan.binary
-          else
-            echo "EKS apps plan not found, skipping apply"
-          fi
+          terragrunt apply tfplan.binary
         continue-on-error: false
