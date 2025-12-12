@@ -10,17 +10,17 @@ Quick reference for using the VPC and EKS modules.
 vpc_name = "dev-shared-vpc"  # Name prefix for all resources
 
 public_subnets = {
-  us-east-1a = {
+  eu-west-1a = {
     cidr = "10.0.1.0/24"
-    az   = "us-east-1a"
+    az   = "eu-west-1a"
     tags = {}  # optional
   }
 }
 
 private_subnets = {
-  us-east-1a = {
+  eu-west-1a = {
     cidr = "10.0.101.0/24"
-    az   = "us-east-1a"
+    az   = "eu-west-1a"
     tags = {}  # optional
   }
 }
@@ -77,13 +77,13 @@ inputs = {
   create_shared_alb = true
 
   public_subnets = {
-    us-east-1a = { cidr = "10.0.1.0/24", az = "us-east-1a", tags = {} }
-    us-east-1b = { cidr = "10.0.2.0/24", az = "us-east-1b", tags = {} }
+    eu-west-1a = { cidr = "10.0.1.0/24", az = "eu-west-1a", tags = {} }
+    eu-west-1b = { cidr = "10.0.2.0/24", az = "eu-west-1b", tags = {} }
   }
 
   private_subnets = {
-    us-east-1a = { cidr = "10.0.101.0/24", az = "us-east-1a", tags = {} }
-    us-east-1b = { cidr = "10.0.102.0/24", az = "us-east-1b", tags = {} }
+    eu-west-1a = { cidr = "10.0.101.0/24", az = "eu-west-1a", tags = {} }
+    eu-west-1b = { cidr = "10.0.102.0/24", az = "eu-west-1b", tags = {} }
   }
 
   alb_target_groups = {
@@ -212,13 +212,13 @@ inputs = {
 
 ```hcl
 public_subnets = {
-  us-east-1a = { cidr = "10.0.1.0/24", az = "us-east-1a", tags = { "kubernetes.io/role/elb" = "1" } }
-  us-east-1b = { cidr = "10.0.2.0/24", az = "us-east-1b", tags = { "kubernetes.io/role/elb" = "1" } }
+  eu-west-1a = { cidr = "10.0.1.0/24", az = "eu-west-1a", tags = { "kubernetes.io/role/elb" = "1" } }
+  eu-west-1b = { cidr = "10.0.2.0/24", az = "eu-west-1b", tags = { "kubernetes.io/role/elb" = "1" } }
 }
 
 private_subnets = {
-  us-east-1a = { cidr = "10.0.101.0/24", az = "us-east-1a", tags = { "kubernetes.io/role/internal-elb" = "1" } }
-  us-east-1b = { cidr = "10.0.102.0/24", az = "us-east-1b", tags = { "kubernetes.io/role/internal-elb" = "1" } }
+  eu-west-1a = { cidr = "10.0.101.0/24", az = "eu-west-1a", tags = { "kubernetes.io/role/internal-elb" = "1" } }
+  eu-west-1b = { cidr = "10.0.102.0/24", az = "eu-west-1b", tags = { "kubernetes.io/role/internal-elb" = "1" } }
 }
 ```
 

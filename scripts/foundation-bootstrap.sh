@@ -67,7 +67,7 @@ fi
 
 log "Ensuring S3 bucket '${BUCKET}' exists for Terraform state"
 if ! aws "${AWS_ARGS[@]}" s3api head-bucket --bucket "${BUCKET}" >/dev/null 2>&1; then
-  if [[ -n "${REGION}" && "${REGION}" != "us-east-1" ]]; then
+  if [[ -n "${REGION}" && "${REGION}" != "eu-west-1" ]]; then
     aws "${AWS_ARGS[@]}" s3api create-bucket --bucket "${BUCKET}" --create-bucket-configuration "LocationConstraint=${REGION}"
   else
     aws "${AWS_ARGS[@]}" s3api create-bucket --bucket "${BUCKET}"

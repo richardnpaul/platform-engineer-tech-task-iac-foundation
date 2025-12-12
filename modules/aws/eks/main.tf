@@ -11,14 +11,51 @@
 terraform {
   required_version = ">= 1.5"
 
-  backend "s3" {}
-
   required_providers {
     aws = {
       source  = "hashicorp/aws"
       version = ">= 5.0"
     }
   }
+}
+
+# Data sources to lookup existing VPC resources
+data "aws_vpc" "selected" {
+  count = var.vpc_name != null ? 1 : 0
+
+  tags = {
+    Name = var.vpc_name
+  }
+}
+
+data "aws_subnets" "private" {
+  count = var.private_subnet_tags != null ? 1 : 0
+
+  filter {
+    name   = "vpc-id"
+    values = [local.vpc_id]
+  }
+
+  tags = var.private_subnet_tags
+}
+
+data "aws_lb_target_group" "selected" {
+  count = var.alb_target_group_name != null ? 1 : 0
+  name  = var.alb_target_group_name
+}
+
+data "aws_lb" "selected" {
+  count = var.alb_name != null ? 1 : 0
+  name  = var.alb_name
+}
+
+# Locals to resolve VPC/subnet IDs from either direct input or data sources
+locals {
+  vpc_id               = var.vpc_id != null ? var.vpc_id : try(data.aws_vpc.selected[0].id, null)
+  subnet_ids           = var.subnet_ids != null ? var.subnet_ids : try(data.aws_subnets.private[0].ids, null)
+  alb_target_group_arn = var.alb_target_group_arn != null ? var.alb_target_group_arn : try(data.aws_lb_target_group.selected[0].arn, null)
+  # Convert security_groups set to list before indexing
+  alb_security_group_id = var.alb_security_group_id != null ? var.alb_security_group_id : try(tolist(data.aws_lb.selected[0].security_groups)[0], null)
 }
 
 # IAM Role for EKS Cluster
@@ -48,7 +85,7 @@ resource "aws_iam_role_policy_attachment" "cluster_policy" {
 resource "aws_security_group" "cluster" {
   name        = "${var.cluster_name}-cluster-sg"
   description = "Security group for EKS cluster control plane"
-  vpc_id      = var.vpc_id
+  vpc_id      = local.vpc_id
 
   egress {
     description = "Allow all outbound traffic"
@@ -67,7 +104,7 @@ resource "aws_security_group" "cluster" {
 resource "aws_security_group" "pods" {
   name        = "${var.cluster_name}-pods-sg"
   description = "Security group for Fargate pods"
-  vpc_id      = var.vpc_id
+  vpc_id      = local.vpc_id
 
   egress {
     description = "Allow all outbound traffic"
@@ -82,9 +119,10 @@ resource "aws_security_group" "pods" {
   })
 }
 
-# Allow ALB to communicate with pods (if target group provided)
+# Allow ALB to communicate with pods
+# Uses for_each with static boolean to avoid issues with computed values
 resource "aws_security_group_rule" "alb_to_pods" {
-  count = var.alb_security_group_id != null ? 1 : 0
+  for_each = var.enable_alb_integration ? toset(["enabled"]) : toset([])
 
   type                     = "ingress"
   from_port                = 0
@@ -102,7 +140,7 @@ resource "aws_eks_cluster" "main" {
   version  = var.kubernetes_version
 
   vpc_config {
-    subnet_ids              = var.subnet_ids
+    subnet_ids              = local.subnet_ids
     endpoint_public_access  = true
     endpoint_private_access = true
     security_group_ids      = [aws_security_group.cluster.id]
@@ -159,7 +197,7 @@ resource "aws_eks_fargate_profile" "kube_system" {
   cluster_name           = aws_eks_cluster.main.name
   fargate_profile_name   = "${var.cluster_name}-kube-system"
   pod_execution_role_arn = aws_iam_role.fargate.arn
-  subnet_ids             = var.subnet_ids
+  subnet_ids             = local.subnet_ids
 
   selector {
     namespace = "kube-system"
@@ -179,7 +217,7 @@ resource "aws_eks_fargate_profile" "app_namespaces" {
   cluster_name           = aws_eks_cluster.main.name
   fargate_profile_name   = "${var.cluster_name}-${each.value}"
   pod_execution_role_arn = aws_iam_role.fargate.arn
-  subnet_ids             = var.subnet_ids
+  subnet_ids             = local.subnet_ids
 
   selector {
     namespace = each.value

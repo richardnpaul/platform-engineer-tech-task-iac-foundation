@@ -79,7 +79,7 @@ terragrunt apply
 
 ```bash
 # Configure kubectl
-aws eks update-kubeconfig --name dev-mgmt-cluster --region us-east-1
+aws eks update-kubeconfig --name dev-mgmt-cluster --region eu-west-1
 
 # Install AWS Load Balancer Controller
 # (See docs/dev-deployment-guide.md for detailed steps)

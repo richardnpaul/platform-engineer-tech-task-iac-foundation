@@ -51,7 +51,7 @@ terragrunt apply
 
 **Outputs:**
 - `vpc_id`: VPC identifier
-- `alb_dns_name`: ALB DNS name (e.g., dev-shared-alb-1234567890.us-east-1.elb.amazonaws.com)
+- `alb_dns_name`: ALB DNS name (e.g., dev-shared-alb-1234567890.eu-west-1.elb.amazonaws.com)
 - `target_group_arns`: Map with "mgmt" and "apps" ARNs
 
 **Resources created:**
@@ -114,13 +114,13 @@ terragrunt apply
 
 **Management cluster:**
 ```bash
-aws eks update-kubeconfig --name dev-mgmt-cluster --region us-east-1
+aws eks update-kubeconfig --name dev-mgmt-cluster --region eu-west-1
 kubectl get nodes
 ```
 
 **Application cluster:**
 ```bash
-aws eks update-kubeconfig --name dev-apps-cluster --region us-east-1 --alias apps
+aws eks update-kubeconfig --name dev-apps-cluster --region eu-west-1 --alias apps
 kubectl get nodes --context apps
 ```
 

@@ -152,7 +152,7 @@ gh pr create --title "Deploy Dev Environment" --body "Deploys VPC, EKS mgmt clus
 
 ### Check AWS Console
 
-1. **VPC:** `us-east-1` region → VPC with name `dev-shared-vpc`
+1. **VPC:** `eu-west-1` region → VPC with name `dev-shared-vpc`
 2. **ALB:** EC2 → Load Balancers → `dev-shared-alb`
 3. **EKS:** EKS → Clusters → `dev-mgmt-cluster`, `dev-apps-cluster`
 
@@ -160,15 +160,15 @@ gh pr create --title "Deploy Dev Environment" --body "Deploys VPC, EKS mgmt clus
 
 ```bash
 # VPC
-aws ec2 describe-vpcs --filters "Name=tag:Name,Values=dev-shared-vpc" --region us-east-1
+aws ec2 describe-vpcs --filters "Name=tag:Name,Values=dev-shared-vpc" --region eu-west-1
 
 # ALB
-aws elbv2 describe-load-balancers --region us-east-1 | jq '.LoadBalancers[] | select(.LoadBalancerName | contains("dev-shared"))'
+aws elbv2 describe-load-balancers --region eu-west-1 | jq '.LoadBalancers[] | select(.LoadBalancerName | contains("dev-shared"))'
 
 # EKS Clusters
-aws eks list-clusters --region us-east-1
-aws eks describe-cluster --name dev-mgmt-cluster --region us-east-1
-aws eks describe-cluster --name dev-apps-cluster --region us-east-1
+aws eks list-clusters --region eu-west-1
+aws eks describe-cluster --name dev-mgmt-cluster --region eu-west-1
+aws eks describe-cluster --name dev-apps-cluster --region eu-west-1
 ```
 
 ### Check via Terraform
@@ -188,10 +188,10 @@ terragrunt output
 
 ```bash
 # Management cluster
-aws eks update-kubeconfig --name dev-mgmt-cluster --region us-east-1
+aws eks update-kubeconfig --name dev-mgmt-cluster --region eu-west-1
 
 # Application cluster
-aws eks update-kubeconfig --name dev-apps-cluster --region us-east-1 --alias apps
+aws eks update-kubeconfig --name dev-apps-cluster --region eu-west-1 --alias apps
 
 # Verify
 kubectl get nodes
