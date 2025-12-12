@@ -19,7 +19,8 @@ dependency "vpc" {
       apps = "arn:aws:elasticloadbalancing:us-east-1:123456789012:targetgroup/mock-apps/1234567890123456"
     }
   }
-  mock_outputs_allowed_terraform_commands = ["validate"]
+  mock_outputs_allowed_terraform_commands = ["validate", "plan", "init"]
+  skip_outputs = false
 }
 
 locals {

@@ -225,6 +225,127 @@ resource "aws_iam_role_policy" "github_actions_deployment" {
           aws_iam_policy.github_actions_boundary.arn,
           aws_iam_role.github_actions.arn
         ]
+      },
+      {
+        Sid    = "ManageVPCResources"
+        Effect = "Allow"
+        Action = [
+          "ec2:CreateVpc",
+          "ec2:DeleteVpc",
+          "ec2:DescribeVpcs",
+          "ec2:ModifyVpcAttribute",
+          "ec2:CreateSubnet",
+          "ec2:DeleteSubnet",
+          "ec2:DescribeSubnets",
+          "ec2:ModifySubnetAttribute",
+          "ec2:CreateInternetGateway",
+          "ec2:DeleteInternetGateway",
+          "ec2:AttachInternetGateway",
+          "ec2:DetachInternetGateway",
+          "ec2:DescribeInternetGateways",
+          "ec2:CreateNatGateway",
+          "ec2:DeleteNatGateway",
+          "ec2:DescribeNatGateways",
+          "ec2:AllocateAddress",
+          "ec2:ReleaseAddress",
+          "ec2:DescribeAddresses",
+          "ec2:AssociateAddress",
+          "ec2:DisassociateAddress",
+          "ec2:CreateRouteTable",
+          "ec2:DeleteRouteTable",
+          "ec2:DescribeRouteTables",
+          "ec2:CreateRoute",
+          "ec2:DeleteRoute",
+          "ec2:AssociateRouteTable",
+          "ec2:DisassociateRouteTable",
+          "ec2:CreateSecurityGroup",
+          "ec2:DeleteSecurityGroup",
+          "ec2:DescribeSecurityGroups",
+          "ec2:AuthorizeSecurityGroupIngress",
+          "ec2:AuthorizeSecurityGroupEgress",
+          "ec2:RevokeSecurityGroupIngress",
+          "ec2:RevokeSecurityGroupEgress",
+          "ec2:CreateTags",
+          "ec2:DeleteTags",
+          "ec2:DescribeTags",
+          "ec2:DescribeAvailabilityZones"
+        ]
+        Resource = "*"
+      },
+      {
+        Sid    = "ManageELBResources"
+        Effect = "Allow"
+        Action = [
+          "elasticloadbalancing:CreateLoadBalancer",
+          "elasticloadbalancing:DeleteLoadBalancer",
+          "elasticloadbalancing:DescribeLoadBalancers",
+          "elasticloadbalancing:CreateTargetGroup",
+          "elasticloadbalancing:DeleteTargetGroup",
+          "elasticloadbalancing:DescribeTargetGroups",
+          "elasticloadbalancing:ModifyTargetGroup",
+          "elasticloadbalancing:CreateListener",
+          "elasticloadbalancing:DeleteListener",
+          "elasticloadbalancing:DescribeListeners",
+          "elasticloadbalancing:ModifyListener",
+          "elasticloadbalancing:AddTags",
+          "elasticloadbalancing:RemoveTags",
+          "elasticloadbalancing:DescribeTags",
+          "elasticloadbalancing:ModifyLoadBalancerAttributes",
+          "elasticloadbalancing:DescribeLoadBalancerAttributes",
+          "elasticloadbalancing:SetSecurityGroups",
+          "elasticloadbalancing:SetSubnets"
+        ]
+        Resource = "*"
+      },
+      {
+        Sid    = "ManageEKSResources"
+        Effect = "Allow"
+        Action = [
+          "eks:CreateCluster",
+          "eks:DeleteCluster",
+          "eks:DescribeCluster",
+          "eks:ListClusters",
+          "eks:UpdateClusterConfig",
+          "eks:UpdateClusterVersion",
+          "eks:TagResource",
+          "eks:UntagResource",
+          "eks:CreateFargateProfile",
+          "eks:DeleteFargateProfile",
+          "eks:DescribeFargateProfile",
+          "eks:ListFargateProfiles",
+          "eks:CreateAddon",
+          "eks:DeleteAddon",
+          "eks:DescribeAddon",
+          "eks:ListAddons",
+          "eks:UpdateAddon"
+        ]
+        Resource = "*"
+      },
+      {
+        Sid    = "ManageEKSServiceLinkedRole"
+        Effect = "Allow"
+        Action = [
+          "iam:CreateServiceLinkedRole"
+        ]
+        Resource = "arn:aws:iam::*:role/aws-service-role/eks.amazonaws.com/*"
+        Condition = {
+          StringEquals = {
+            "iam:AWSServiceName" = "eks.amazonaws.com"
+          }
+        }
+      },
+      {
+        Sid    = "PassRoleToEKS"
+        Effect = "Allow"
+        Action = [
+          "iam:PassRole"
+        ]
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "iam:PassedToService" = "eks.amazonaws.com"
+          }
+        }
       }
     ]
   })

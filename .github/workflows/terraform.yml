@@ -84,15 +84,6 @@ jobs:
           terragrunt show -no-color tfplan.binary > tfplan.txt
         continue-on-error: true
 
-      - name: Apply VPC for EKS dependency
-        id: apply-vpc
-        working-directory: environments/aws/dev/vpc
-        run: |
-          echo "⚙️  Applying VPC to make outputs available for EKS planning..."
-          terragrunt apply -auto-approve tfplan.binary
-          echo "✅ VPC applied - EKS stacks can now access VPC outputs"
-        continue-on-error: true
-
       - name: Terragrunt Plan - Dev EKS Management
         id: plan-eks-mgmt
         working-directory: environments/aws/dev/eks-mgmt
@@ -215,13 +206,11 @@ jobs:
             **Plan S3 location:** \`s3://${{ env.TF_STATE_BUCKET }}/terraform-plans/${{ github.event.pull_request.number }}/${{ github.sha }}/\` (14-day S3 lifecycle)
             **Note:**
             - Plans stored in both GitHub artifacts (7d) and S3 (14d) for redundancy. Apply job uses S3 copy.
-            - VPC was applied during plan phase to provide outputs for EKS planning (dependency requirement).
+            - EKS plans use mock VPC outputs (real outputs applied during apply phase).
 
-            **Deployment order:** Organizations (manual) → GitHub OIDC → Dev VPC (auto-applied for dependencies) → Dev EKS Mgmt → Dev EKS Apps
+            **Deployment order:** Organizations (manual) → GitHub OIDC → Dev VPC → Dev EKS Mgmt → Dev EKS Apps
             **Organizations:** Managed locally with admin credentials for security.
-            *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Workflow: \`${{ github.workflow }}\`*`;
-
-            github.rest.issues.createComment({
+            *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Workflow: \`${{ github.workflow }}\`*`;            github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -320,16 +309,16 @@ jobs:
       # 1. Respect dependencies (OIDC → VPC → EKS Mgmt → EKS Apps)
       # 2. Prevent DynamoDB state lock conflicts within same AWS account
       # 3. Allow verification of outputs between dependent stacks
-      # Note: VPC was already applied during plan phase to enable EKS planning
       - name: Terragrunt Apply - GitHub OIDC
         working-directory: environments/aws/root/deployment/github-oidc
         run: |
           terragrunt apply tfplan.binary
 
-      - name: Skip VPC Apply (already applied during plan)
+      - name: Terragrunt Apply - Dev VPC
+        working-directory: environments/aws/dev/vpc
         run: |
-          echo "ℹ️  VPC was already applied during the plan phase to provide outputs for EKS dependencies"
-          echo "✅ Skipping VPC apply step"
+          terragrunt apply tfplan.binary
+        continue-on-error: false
 
       - name: Verify VPC outputs before EKS
         working-directory: environments/aws/dev/vpc
