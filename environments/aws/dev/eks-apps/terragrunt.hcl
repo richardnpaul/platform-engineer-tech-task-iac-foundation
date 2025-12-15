@@ -10,12 +10,13 @@ include "root" {
 locals {
   environment = "dev"
   region      = "eu-west-1"
+  cluster     = "apps-cluster"
 
   tags = {
-    Environment = "dev"
+    Environment = local.environment
     ManagedBy   = "terraform"
     Purpose     = "application-workloads"
-    Cluster     = "apps-cluster"
+    Cluster     = local.cluster
     Project     = "platform-foundation"
   }
 }
@@ -25,21 +26,22 @@ terraform {
 }
 
 inputs = {
-  cluster_name       = "dev-apps-cluster"
-  kubernetes_version = "1.31"
+  environment        = local.environment
+  cluster_name       = local.cluster
+  kubernetes_version = "1.34"
 
   # Lookup VPC by name (module will use data sources)
-  vpc_name = "dev-shared-vpc"
+  vpc_name = "shared-vpc"
 
   # Subnet tags for lookup
   private_subnet_tags = {
     "kubernetes.io/role/internal-elb" = "1"
-    "Environment" = "dev"
+    "Environment" = local.environment
   }
 
   # ALB target group name for lookup
-  alb_target_group_name = "dev-apps-tg"
-  alb_name              = "dev-shared-alb"
+  alb_target_group_name = "apps-tg"
+  alb_name              = "shared-alb"
 
   # Fargate namespaces (applications will be deployed here)
   fargate_namespaces = [

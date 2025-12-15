@@ -1,3 +1,8 @@
+variable "environment" {
+  description = "Name of the environment that we're running in"
+  type        = string
+}
+
 variable "cluster_name" {
   description = "Name of the EKS cluster"
   type        = string
@@ -6,7 +11,7 @@ variable "cluster_name" {
 variable "kubernetes_version" {
   description = "Kubernetes version for EKS cluster"
   type        = string
-  default     = "1.31"
+  default     = "1.34"
 }
 
 # Option 1: Pass VPC/subnet IDs directly (original approach)

@@ -20,7 +20,7 @@ locals {
   region      = "eu-west-1"
 
   tags = {
-    Environment = "dev"
+    Environment = local.environment
     ManagedBy   = "terraform"
     Project     = "platform-foundation"
   }
@@ -31,16 +31,16 @@ terraform {
 }
 
 inputs = {
-  environment = local.environment
-  region      = local.region
+  region              = local.region
+  environment         = local.environment
+  kubernetes_version  = "1.34"
 
   # VPC Configuration
   vpc_cidr = "10.0.0.0/16"
 
   # EKS Configuration
-  eks_mgmt_cluster_name = "dev-mgmt-cluster"
-  eks_apps_cluster_name = "dev-apps-cluster"
-  kubernetes_version    = "1.31"
+  eks_mgmt_cluster_name = "mgmt-cluster"
+  eks_apps_cluster_name = "apps-cluster"
 
   tags = local.tags
 }

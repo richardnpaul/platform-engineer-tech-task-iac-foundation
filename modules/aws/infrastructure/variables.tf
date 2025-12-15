@@ -26,7 +26,7 @@ variable "eks_apps_cluster_name" {
 variable "kubernetes_version" {
   description = "Kubernetes version"
   type        = string
-  default     = "1.31"
+  default     = "1.34"
 }
 
 variable "tags" {

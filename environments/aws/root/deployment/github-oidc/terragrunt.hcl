@@ -14,8 +14,8 @@ dependency "orgs" {
 }
 
 locals {
-  environment = "production"
-  aws_region  = "eu-west-1"
+  environment = get_env("TF_VAR_environment")
+  aws_region  = get_env("TF_VAR_region", "eu-west-1")
 
   tags = {
     Environment  = local.environment

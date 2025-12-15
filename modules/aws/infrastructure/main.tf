@@ -4,7 +4,7 @@
 # No dependencies, no data sources, pure Terraform references
 
 terraform {
-  required_version = ">= 1.5"
+  required_version = ">= 1.14"
   backend "s3" {}
 
   required_providers {

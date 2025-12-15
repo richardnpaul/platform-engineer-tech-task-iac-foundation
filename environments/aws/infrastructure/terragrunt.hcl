@@ -17,9 +17,6 @@ include "root" {
 }
 
 locals {
-  # Environment name comes from environment variable
-  # In CI/CD: Set via GitHub environment
-  # Locally: export TF_VAR_environment=dev
   environment = get_env("TF_VAR_environment", "dev")
 
   # Region can also be environment-specific
@@ -34,17 +31,11 @@ locals {
 }
 
 terraform {
-  source = "${get_repo_root()}//modules/aws/dev-infrastructure"
-}# All inputs come from variables - no hardcoded environment values
+  source = "${get_repo_root()}//modules/aws/infrastructure"
+}
+
 inputs = {
   environment = local.environment
   region      = local.region
-
-  # These will come from tfvars files or TF_VAR_* environment variables
-  # vpc_cidr = set via tfvars
-  # eks_mgmt_cluster_name = set via tfvars
-  # eks_apps_cluster_name = set via tfvars
-  # kubernetes_version = set via tfvars
-
-  tags = local.tags
+  tags        = local.tags
 }

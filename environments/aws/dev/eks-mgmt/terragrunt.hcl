@@ -8,14 +8,15 @@ include "root" {
 }
 
 locals {
-  environment = "dev"
+  environment = get_env("TF_VAR_environment")
   region      = "eu-west-1"
+  cluster     = "mgmt-cluster"
 
   tags = {
-    Environment = "dev"
+    Environment = local.environment
     ManagedBy   = "terraform"
     Purpose     = "argocd-management"
-    Cluster     = "mgmt-cluster"
+    Cluster     = local.cluster
     Project     = "platform-foundation"
   }
 }
@@ -25,21 +26,17 @@ terraform {
 }
 
 inputs = {
-  cluster_name       = "dev-mgmt-cluster"
-  kubernetes_version = "1.31"
+  environment        = local.environment
+  cluster_name       = local.cluster
+  kubernetes_version = "1.34"
 
-  # Lookup VPC by name (module will use data sources)
-  vpc_name = "dev-shared-vpc"
-
-  # Subnet tags for lookup
+  vpc_name           = "shared-vpc"
   private_subnet_tags = {
     "kubernetes.io/role/internal-elb" = "1"
-    "Environment" = "dev"
+    "Environment" = local.environment
   }
-
-  # ALB target group name for lookup
-  alb_target_group_name = "dev-mgmt-tg"
-  alb_name              = "dev-shared-alb"
+  alb_target_group_name = "mgmt-tg"
+  alb_name              = "shared-alb"
 
   # Fargate namespaces
   fargate_namespaces = [
