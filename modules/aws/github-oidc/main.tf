@@ -4,14 +4,14 @@
 # with scoped trust policy and permissions boundary
 
 terraform {
-  required_version = ">= 1.5"
+  required_version = ">= 1.14,<2.0"
 
   backend "s3" {}
 
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = ">= 5.0"
+      version = ">= 6.0,<7.0"
     }
   }
 }

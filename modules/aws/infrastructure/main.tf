@@ -4,13 +4,13 @@
 # No dependencies, no data sources, pure Terraform references
 
 terraform {
-  required_version = ">= 1.14"
+  required_version = ">= 1.14,<2.0"
   backend "s3" {}
 
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = ">= 5.0"
+      version = ">= 6.0,<7.0"
     }
   }
 }
@@ -76,6 +76,7 @@ module "vpc" {
 module "eks_mgmt" {
   source = "../eks"
 
+  environment        = var.environment
   cluster_name       = var.eks_mgmt_cluster_name
   kubernetes_version = var.kubernetes_version
 
@@ -101,6 +102,7 @@ module "eks_mgmt" {
 module "eks_apps" {
   source = "../eks"
 
+  environment        = var.environment
   cluster_name       = var.eks_apps_cluster_name
   kubernetes_version = var.kubernetes_version
 
