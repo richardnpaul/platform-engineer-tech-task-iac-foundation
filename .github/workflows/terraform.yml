@@ -36,6 +36,7 @@ jobs:
     name: Terraform Plan
     runs-on: ubuntu-24.04
     if: github.event_name == 'pull_request'
+    environment: dev
 
     env:
       TF_VAR_dev_email: ${{ secrets.DEV_ACCOUNT_EMAIL }}
@@ -67,6 +68,15 @@ jobs:
           chmod +x terragrunt_linux_amd64
           sudo mv terragrunt_linux_amd64 /usr/local/bin/terragrunt
           terragrunt --version
+
+      - name: Create local TF_VARS file
+        run: |
+          echo "Creating local terraform.tfvars file with sensitive variables"
+          cat <<EOF > terraform.tfvars
+          ${{ vars.TFVARS }}
+          EOF
+          chmod 0600 terraform.tfvars
+          cat terraform.tfvars
 
       - name: Terragrunt Plan - GitHub OIDC
         id: plan-oidc
@@ -221,6 +231,7 @@ jobs:
     name: Terraform Apply
     runs-on: ubuntu-24.04
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: terraform-plan
     environment: production  # Requires manual approval in GitHub
 
     env:
