@@ -34,15 +34,11 @@ inputs = {
   github_org  = "richardnpaul"
   github_repo = "platform-engineer-tech-task-iac-foundation"
 
-  # Allow GitHub Actions from main branch, pull requests, and GitHub environments
-  allowed_subjects = [
-    "repo:richardnpaul/platform-engineer-tech-task-iac-foundation:ref:refs/heads/main",
-    "repo:richardnpaul/platform-engineer-tech-task-iac-foundation:pull_request",
-    "repo:richardnpaul/platform-engineer-tech-task-iac-foundation:environment:dev",
-    "repo:richardnpaul/platform-engineer-tech-task-iac-foundation:environment:staging",
-    "repo:richardnpaul/platform-engineer-tech-task-iac-foundation:environment:prod",
-    "repo:richardnpaul/platform-engineer-tech-task-iac-foundation:environment:production"
-  ]
+  # Environment-based authentication with restrictions:
+  # - production: only from main branch
+  # - dev/staging: only from pull requests
+  # - main branch: direct push access
+  allow_legacy_pull_request = false
 
   role_name        = "GitHubActionsDeploymentRole"
   session_duration = 14400 # 4 hours

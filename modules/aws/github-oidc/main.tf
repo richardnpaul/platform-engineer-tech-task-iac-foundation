@@ -127,25 +127,85 @@ resource "aws_iam_role" "github_actions" {
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [
-      {
-        Sid    = "AllowGitHubOIDC"
-        Effect = "Allow"
-        Principal = {
-          Federated = aws_iam_openid_connect_provider.github.arn
-        }
-        Action = "sts:AssumeRoleWithWebIdentity"
-        Condition = {
-          StringEquals = {
-            "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
+    Statement = concat(
+      [
+        # Allow from main branch (for push events)
+        {
+          Sid    = "AllowMainBranch"
+          Effect = "Allow"
+          Principal = {
+            Federated = aws_iam_openid_connect_provider.github.arn
           }
-          StringLike = {
-            # Restrict to specific repository and branches
-            "token.actions.githubusercontent.com:sub" = var.allowed_subjects
+          Action = "sts:AssumeRoleWithWebIdentity"
+          Condition = {
+            StringEquals = {
+              "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
+            }
+            StringLike = {
+              "token.actions.githubusercontent.com:sub" = "repo:${var.github_org}/${var.github_repo}:ref:refs/heads/main"
+            }
+          }
+        },
+        # Allow production environment only from main branch
+        {
+          Sid    = "AllowProductionEnvironmentFromMain"
+          Effect = "Allow"
+          Principal = {
+            Federated = aws_iam_openid_connect_provider.github.arn
+          }
+          Action = "sts:AssumeRoleWithWebIdentity"
+          Condition = {
+            StringEquals = {
+              "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
+              "token.actions.githubusercontent.com:ref" = "refs/heads/main"
+            }
+            StringLike = {
+              "token.actions.githubusercontent.com:sub" = "repo:${var.github_org}/${var.github_repo}:environment:production"
+            }
+          }
+        },
+        # Allow dev/staging environments from pull requests
+        {
+          Sid    = "AllowNonProdEnvironmentsFromPullRequests"
+          Effect = "Allow"
+          Principal = {
+            Federated = aws_iam_openid_connect_provider.github.arn
+          }
+          Action = "sts:AssumeRoleWithWebIdentity"
+          Condition = {
+            StringEquals = {
+              "token.actions.githubusercontent.com:aud"        = "sts.amazonaws.com"
+              "token.actions.githubusercontent.com:event_name" = "pull_request"
+            }
+            StringLike = {
+              "token.actions.githubusercontent.com:sub" = [
+                "repo:${var.github_org}/${var.github_repo}:environment:dev",
+                "repo:${var.github_org}/${var.github_repo}:environment:staging"
+              ]
+            }
           }
         }
-      }
-    ]
+      ],
+      # Support legacy pull_request subject for backwards compatibility
+      var.allow_legacy_pull_request ? [
+        {
+          Sid    = "AllowLegacyPullRequest"
+          Effect = "Allow"
+          Principal = {
+            Federated = aws_iam_openid_connect_provider.github.arn
+          }
+          Action = "sts:AssumeRoleWithWebIdentity"
+          Condition = {
+            StringEquals = {
+              "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
+            }
+            StringLike = {
+              "token.actions.githubusercontent.com:sub" = "repo:${var.github_org}/${var.github_repo}:pull_request"
+            }
+          }
+        }
+      ] : []
+    )
   })
 
   tags = var.tags
