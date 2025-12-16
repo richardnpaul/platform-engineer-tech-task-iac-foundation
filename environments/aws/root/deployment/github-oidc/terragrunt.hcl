@@ -14,8 +14,8 @@ dependency "orgs" {
 }
 
 locals {
-  environment = get_env("TF_VAR_environment")
-  aws_region  = get_env("TF_VAR_region", "eu-west-1")
+  environment = "production"  # OIDC is a root/management account resource
+  aws_region  = "eu-west-1"
 
   tags = {
     Environment  = local.environment
