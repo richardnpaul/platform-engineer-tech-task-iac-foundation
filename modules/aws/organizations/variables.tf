@@ -13,6 +13,11 @@ variable "deployment_email" {
   type        = string
 }
 
+variable "dev_email" {
+  description = "Email address for the Development account"
+  type        = string
+}
+
 variable "tags" {
   description = "Common tags to apply to all resources"
   type        = map(string)
