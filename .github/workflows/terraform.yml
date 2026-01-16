@@ -126,8 +126,6 @@ jobs:
             s3://${PLAN_BUCKET}/${PLAN_KEY}/dev-infrastructure.tfplan.binary
 
           echo "✅ Plans uploaded to s3://${PLAN_BUCKET}/${PLAN_KEY}/"
-        env:
-          AWS_REGION: eu-west-1
 
       - name: Comment PR with plan
         uses: actions/github-script@v8
