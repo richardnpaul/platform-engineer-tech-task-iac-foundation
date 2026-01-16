@@ -83,7 +83,10 @@ jobs:
         working-directory: environments/aws/root/deployment/github-oidc
         run: |
           terragrunt plan -out=tfplan.binary 2>&1 | tee plan.txt
-          terragrunt show -no-color tfplan.binary > tfplan.txt
+          # If plan succeeded, generate human-readable output
+          if [ -f tfplan.binary ]; then
+            terragrunt show -no-color tfplan.binary > tfplan.txt
+          fi
         continue-on-error: true
 
       - name: Terragrunt Plan - Dev Infrastructure
@@ -94,7 +97,10 @@ jobs:
           TF_VAR_region: eu-west-1
         run: |
           terragrunt plan -var-file=dev.tfvars -out=tfplan.binary 2>&1 | tee plan.txt
-          terragrunt show -no-color tfplan.binary > tfplan.txt
+          # If plan succeeded, generate human-readable output
+          if [ -f tfplan.binary ]; then
+            terragrunt show -no-color tfplan.binary > tfplan.txt
+          fi
         continue-on-error: true
 
       - name: Upload plan artifacts
@@ -117,15 +123,50 @@ jobs:
           PLAN_KEY="terraform-plans/${{ github.event.pull_request.number }}/${{ github.sha }}"
 
           echo "📤 Uploading plans to S3: ${PLAN_BUCKET}/${PLAN_KEY}/"
+          
+          UPLOADED=0
+          OIDC_OUTCOME="${{ steps.plan-oidc.outcome }}"
+          INFRA_OUTCOME="${{ steps.plan-dev-infra.outcome }}"
 
-          # Upload all plan files to S3 with flat structure
-          aws s3 cp environments/aws/root/deployment/github-oidc/tfplan.binary \
-            s3://${PLAN_BUCKET}/${PLAN_KEY}/github-oidc.tfplan.binary
+          # Handle OIDC plan
+          OIDC_PATH="environments/aws/root/deployment/github-oidc/tfplan.binary"
+          if [ "${OIDC_OUTCOME}" = "success" ]; then
+            if [ -f "${OIDC_PATH}" ]; then
+              aws s3 cp "${OIDC_PATH}" \
+                s3://${PLAN_BUCKET}/${PLAN_KEY}/github-oidc.tfplan.binary
+              echo "✅ github-oidc: Uploaded plan with changes"
+              UPLOADED=$((UPLOADED + 1))
+            else
+              echo "ℹ️  github-oidc: Plan succeeded with no changes (no-op)"
+            fi
+          else
+            echo "❌ github-oidc: Plan failed (outcome: ${OIDC_OUTCOME})"
+          fi
 
-          aws s3 cp environments/aws/infrastructure/tfplan.binary \
-            s3://${PLAN_BUCKET}/${PLAN_KEY}/dev-infrastructure.tfplan.binary
+          # Handle infrastructure plan
+          INFRA_PATH="environments/aws/infrastructure/tfplan.binary"
+          if [ "${INFRA_OUTCOME}" = "success" ]; then
+            if [ -f "${INFRA_PATH}" ]; then
+              aws s3 cp "${INFRA_PATH}" \
+                s3://${PLAN_BUCKET}/${PLAN_KEY}/dev-infrastructure.tfplan.binary
+              echo "✅ dev-infrastructure: Uploaded plan with changes"
+              UPLOADED=$((UPLOADED + 1))
+            else
+              echo "ℹ️  dev-infrastructure: Plan succeeded with no changes (no-op)"
+            fi
+          else
+            echo "❌ dev-infrastructure: Plan failed (outcome: ${INFRA_OUTCOME})"
+          fi
 
-          echo "✅ Plans uploaded to s3://${PLAN_BUCKET}/${PLAN_KEY}/"
+          # Fail only if BOTH plans failed
+          if [ "${OIDC_OUTCOME}" != "success" ] && [ "${INFRA_OUTCOME}" != "success" ]; then
+            echo "❌ Both plans failed - cannot proceed"
+            exit 1
+          elif [ $UPLOADED -eq 0 ]; then
+            echo "✅ All plans succeeded with no changes (nothing to upload)"
+          else
+            echo "✅ Plan upload complete ($UPLOADED plan file(s) uploaded)"
+          fi
 
       - name: Comment PR with plan
         uses: actions/github-script@v8
@@ -139,43 +180,58 @@ jobs:
               try {
                 return fs.readFileSync(path, 'utf8');
               } catch (err) {
-                return `Error reading plan: ${err.message}`;
+                return null;
               }
             };
 
+            const oidcSuccess = '${{ steps.plan-oidc.outcome }}' === 'success';
+            const infraSuccess = '${{ steps.plan-dev-infra.outcome }}' === 'success';
+            
             const planOidc = readPlanSafe('environments/aws/root/deployment/github-oidc/tfplan.txt');
             const planInfra = readPlanSafe('environments/aws/infrastructure/tfplan.txt');
+            
+            const formatPlanSection = (title, success, planText) => {
+              const statusIcon = success ? '✅' : '❌';
+              const statusText = success ? 'Success' : 'Failed';
+              
+              if (!planText) {
+                return `#### ${title} ${statusIcon}
+            **Status:** ${statusText} - No changes detected
+            
+            Infrastructure matches configuration. No plan file generated.`;
+              }
+              
+              return `#### ${title} ${statusIcon}
+            **Status:** ${statusText}
+            
+            <details><summary>Show Plan</summary>
+
+            \`\`\`hcl
+            ${planText}
+            \`\`\`
+
+            </details>`;
+            };
 
             const output = `### Terraform Plan Results
 
-            #### GitHub OIDC Stack
-            <details><summary>Show Plan</summary>
+            ${formatPlanSection('GitHub OIDC Stack', oidcSuccess, planOidc)}
 
-            \`\`\`hcl
-            ${planOidc}
-            \`\`\`
-
-            </details>
-
-            #### Dev Infrastructure (VPC + EKS Clusters)
-            <details><summary>Show Plan</summary>
-
-            \`\`\`hcl
-            ${planInfra}
-            \`\`\`
-
-            </details>
+            ${formatPlanSection('Dev Infrastructure (VPC + EKS Clusters)', infraSuccess, planInfra)}
 
             ---
             **Plan artifact:** \`${{ env.PLAN_ARTIFACT_NAME }}\` (7-day GitHub retention)
-            **Plan S3 location:** \`s3://${{ env.TF_STATE_BUCKET }}/terraform-plans/${{ github.event.pull_request.number }}/${{ github.sha }}/\` (14-day S3 lifecycle)
+            **Plan S3 location:** \`s3://${{ env.TF_STATE_BUCKET }}/terraform-plans/${{ github.event.pull_request.number }}/${{ github.sha }}/\`
             **Note:**
-            - Plans stored in both GitHub artifacts (7d) and S3 (14d) for redundancy. Apply job uses S3 copy.
+            - Plans with changes stored in both GitHub artifacts (7d) and S3 (14d).
+            - Plans with no changes don't generate binary files (nothing to apply).
             - Infrastructure uses environment parameterization (dev.tfvars).
 
             **Deployment order:** Organizations (manual) → GitHub OIDC → Dev Infrastructure
             **Organizations:** Managed locally with admin credentials for security.
-            *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Workflow: \`${{ github.workflow }}\`*`;            github.rest.issues.createComment({
+            *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Workflow: \`${{ github.workflow }}\`*`;
+            
+            github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
