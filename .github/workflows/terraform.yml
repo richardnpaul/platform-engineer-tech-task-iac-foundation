@@ -111,7 +111,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Upload plans to S3
-        if: success()
+        if: (success() || failure()) && !cancelled()
         run: |
           PLAN_BUCKET="${{ env.TF_STATE_BUCKET }}"
           PLAN_KEY="terraform-plans/${{ github.event.pull_request.number }}/${{ github.sha }}"
