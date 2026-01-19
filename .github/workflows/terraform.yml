@@ -123,7 +123,7 @@ jobs:
           PLAN_KEY="terraform-plans/${{ github.event.pull_request.number }}/${{ github.sha }}"
 
           echo "📤 Uploading plans to S3: ${PLAN_BUCKET}/${PLAN_KEY}/"
-          
+
           UPLOADED=0
           OIDC_OUTCOME="${{ steps.plan-oidc.outcome }}"
           INFRA_OUTCOME="${{ steps.plan-dev-infra.outcome }}"
@@ -180,30 +180,30 @@ jobs:
               try {
                 return fs.readFileSync(path, 'utf8');
               } catch (err) {
-                return null;
+                return `Error reading plan: ${err.message}`;
               }
             };
 
             const oidcSuccess = '${{ steps.plan-oidc.outcome }}' === 'success';
             const infraSuccess = '${{ steps.plan-dev-infra.outcome }}' === 'success';
-            
+
             const planOidc = readPlanSafe('environments/aws/root/deployment/github-oidc/tfplan.txt');
             const planInfra = readPlanSafe('environments/aws/infrastructure/tfplan.txt');
-            
+
             const formatPlanSection = (title, success, planText) => {
               const statusIcon = success ? '✅' : '❌';
               const statusText = success ? 'Success' : 'Failed';
-              
+
               if (!planText) {
                 return `#### ${title} ${statusIcon}
             **Status:** ${statusText} - No changes detected
-            
+
             Infrastructure matches configuration. No plan file generated.`;
               }
-              
+
               return `#### ${title} ${statusIcon}
             **Status:** ${statusText}
-            
+
             <details><summary>Show Plan</summary>
 
             \`\`\`hcl
@@ -221,7 +221,7 @@ jobs:
 
             ---
             **Plan artifact:** \`${{ env.PLAN_ARTIFACT_NAME }}\` (7-day GitHub retention)
-            **Plan S3 location:** \`s3://${{ env.TF_STATE_BUCKET }}/terraform-plans/${{ github.event.pull_request.number }}/${{ github.sha }}/\`
+            **Plan S3 location:** \`s3://${{ env.TF_STATE_BUCKET }}/terraform-plans/${{ github.event.pull_request.number }}/${{ github.sha }}/\` (14-day S3 lifecycle)
             **Note:**
             - Plans with changes stored in both GitHub artifacts (7d) and S3 (14d).
             - Plans with no changes don't generate binary files (nothing to apply).
@@ -230,7 +230,7 @@ jobs:
             **Deployment order:** Organizations (manual) → GitHub OIDC → Dev Infrastructure
             **Organizations:** Managed locally with admin credentials for security.
             *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Workflow: \`${{ github.workflow }}\`*`;
-            
+
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
