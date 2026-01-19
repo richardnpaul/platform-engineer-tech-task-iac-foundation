@@ -1,9 +1,9 @@
-name: Deploy Guestbook App
+name: Deploy Demo App
 
 on:
   workflow_dispatch:
   repository_dispatch:
-    types: [deploy-guestbook]
+    types: [deploy-demo-app]
 
 permissions:
   id-token: write
@@ -50,7 +50,7 @@ jobs:
 
       - name: Update Kubernetes Manifest
         run: |
-          cd k8s/manifests/guestbook
+          cd k8s/manifests/demo-app
           # Update the image tag in deployment.yaml
           # Matches: image: <repo-url>:<tag>
           sed -i "s|image: .*|image: ${{ steps.build-image.outputs.image }}|g" deployment.yaml
@@ -67,5 +67,5 @@ jobs:
 
           # Commit and push
           git add deployment.yaml
-          git commit -m "deploy: update guestbook image to $IMAGE_TAG"
+          git commit -m "deploy: update demo-app image to $IMAGE_TAG"
           git push

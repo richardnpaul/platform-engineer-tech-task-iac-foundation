@@ -26,10 +26,10 @@ kubectl apply -n "$ARGOCD_NAMESPACE" -f https://raw.githubusercontent.com/argopr
 echo "Waiting for ArgoCD pods to be ready..."
 kubectl wait --for=condition=Ready pods --all -n "$ARGOCD_NAMESPACE" --timeout=300s
 
-# 4. Apply Guestbook Application
-echo "Applying Guestbook Application..."
-kubectl apply -f ../k8s/argocd/guestbook-app.yaml
+# 4. Apply Demo Application
+echo "Applying Demo Application..."
+kubectl apply -f ../k8s/argocd/demo-app.yaml
 
 echo "=== Bootstrap Complete ==="
 echo "ArgoCD is running in namespace: $ARGOCD_NAMESPACE"
-echo "Guestbook App configured to sync from k8s/manifests/guestbook"
+echo "Demo App configured to sync from k8s/manifests/demo-app"

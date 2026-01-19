@@ -1,8 +1,8 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: guestbook-ui
-  namespace: guestbook
+  name: demo-app-ui
+  namespace: demo-app
   annotations:
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/target-type: ip
@@ -16,6 +16,6 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: guestbook-ui
+                name: demo-app-ui
                 port:
                   number: 80
