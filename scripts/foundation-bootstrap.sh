@@ -8,7 +8,7 @@ STATE_KEY=${2:-}
 BUCKET=${3:-}
 REGION=${4:-}
 # Note: 5th arg is the target profile name, but we don't use it for bootstrap auth
-# Bootstrap needs root/admin creds, then creates the profile
+# Bootstrap needs root/admin credentials, then creates the profile
 
 log() {
   echo "[bootstrap-state] $*"
@@ -45,7 +45,7 @@ command -v jq >/dev/null 2>&1 || { log "jq not found in PATH; also ensure that y
 command -v terragrunt >/dev/null 2>&1 || { log "Terragrunt not found in PATH; also ensure that you have terraform installed"; exit 1; }
 command -v terraform >/dev/null 2>&1 || { log "Terraform not found in PATH"; exit 1; }
 
-# For bootstrap operations, don't specify a profile - use whatever creds are currently active
+# For bootstrap operations, don't specify a profile - use whatever credentials are currently active
 # (root via aws login, or existing terraform-bootstrap profile if re-running)
 AWS_ARGS=()
 [[ -n "${REGION}" ]] && AWS_ARGS+=(--region "${REGION}")
@@ -67,7 +67,7 @@ fi
 
 log "Ensuring S3 bucket '${BUCKET}' exists for Terraform state"
 if ! aws "${AWS_ARGS[@]}" s3api head-bucket --bucket "${BUCKET}" >/dev/null 2>&1; then
-  if [[ -n "${REGION}" && "${REGION}" != "us-east-1" ]]; then
+  if [[ -n "${REGION}" && "${REGION}" != "eu-west-1" ]]; then
     aws "${AWS_ARGS[@]}" s3api create-bucket --bucket "${BUCKET}" --create-bucket-configuration "LocationConstraint=${REGION}"
   else
     aws "${AWS_ARGS[@]}" s3api create-bucket --bucket "${BUCKET}"

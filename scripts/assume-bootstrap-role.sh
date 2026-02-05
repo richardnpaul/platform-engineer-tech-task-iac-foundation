@@ -10,7 +10,9 @@
 
 # Use set -e only if not sourced (to avoid killing the parent shell)
 if [ "$SOURCED" -eq 0 ]; then
-  set -euo pipefail
+  set -o errexit
+  set -o nounset
+  set -o pipefail
 fi
 
 ROLE_ARN="arn:aws:iam::793421532223:role/terraform-bootstrap-role"
@@ -20,28 +22,28 @@ EXTERNAL_ID="terraform-bootstrap"
 echo "[assume-role] Assuming role: ${ROLE_ARN}"
 
 # Assume the role and capture credentials
-if ! CREDS=$(aws sts assume-role \
+if ! CREDENTIALS=$(aws sts assume-role \
   --role-arn "${ROLE_ARN}" \
   --role-session-name "${SESSION_NAME}" \
   --external-id "${EXTERNAL_ID}" \
   --output json 2>&1); then
   echo "[assume-role] ✗ Failed to assume role:"
-  echo "${CREDS}"
+  echo "${CREDENTIALS}"
   [ "$SOURCED" -eq 1 ] && return 1 || exit 1
 fi
 
 # Extract and export credentials
-if ! AWS_ACCESS_KEY_ID=$(echo "${CREDS}" | jq -r '.Credentials.AccessKeyId'); then
+if ! AWS_ACCESS_KEY_ID=$(echo "${CREDENTIALS}" | jq -r '.Credentials.AccessKeyId'); then
   echo "[assume-role] ✗ Failed to parse AccessKeyId"
   [ "$SOURCED" -eq 1 ] && return 1 || exit 1
 fi
 
-if ! AWS_SECRET_ACCESS_KEY=$(echo "${CREDS}" | jq -r '.Credentials.SecretAccessKey'); then
+if ! AWS_SECRET_ACCESS_KEY=$(echo "${CREDENTIALS}" | jq -r '.Credentials.SecretAccessKey'); then
   echo "[assume-role] ✗ Failed to parse SecretAccessKey"
   [ "$SOURCED" -eq 1 ] && return 1 || exit 1
 fi
 
-if ! AWS_SESSION_TOKEN=$(echo "${CREDS}" | jq -r '.Credentials.SessionToken'); then
+if ! AWS_SESSION_TOKEN=$(echo "${CREDENTIALS}" | jq -r '.Credentials.SessionToken'); then
   echo "[assume-role] ✗ Failed to parse SessionToken"
   [ "$SOURCED" -eq 1 ] && return 1 || exit 1
 fi
@@ -53,7 +55,7 @@ export AWS_SESSION_TOKEN
 # Unset profile so session credentials take precedence
 unset AWS_PROFILE
 
-EXPIRATION=$(echo "${CREDS}" | jq -r '.Credentials.Expiration')
+EXPIRATION=$(echo "${CREDENTIALS}" | jq -r '.Credentials.Expiration')
 IDENTITY=$(aws sts get-caller-identity --query Arn --output text 2>/dev/null || echo 'unknown')
 
 echo "[assume-role] ✓ Role assumed successfully"

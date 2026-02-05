@@ -14,8 +14,8 @@ dependency "orgs" {
 }
 
 locals {
-  environment = "production"
-  aws_region  = "eu-west-1"
+  environment = "production"  # OIDC is a root/management account resource
+  aws_region  = get_env("AWS_REGION", "eu-west-1")
 
   tags = {
     Environment  = local.environment
@@ -34,11 +34,11 @@ inputs = {
   github_org  = "richardnpaul"
   github_repo = "platform-engineer-tech-task-iac-foundation"
 
-  # Allow GitHub Actions from main branch and pull requests
-  allowed_subjects = [
-    "repo:richardnpaul/platform-engineer-tech-task-iac-foundation:ref:refs/heads/main",
-    "repo:richardnpaul/platform-engineer-tech-task-iac-foundation:pull_request"
-  ]
+  # Environment-based authentication with restrictions:
+  # - production: only from main branch
+  # - dev/staging: only from pull requests
+  # - main branch: direct push access
+  allow_legacy_pull_request = false
 
   role_name        = "GitHubActionsDeploymentRole"
   session_duration = 14400 # 4 hours

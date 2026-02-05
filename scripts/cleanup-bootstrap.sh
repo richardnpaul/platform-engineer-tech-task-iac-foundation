@@ -5,7 +5,9 @@
 #
 # Usage: ./scripts/cleanup-bootstrap.sh
 
-set -euo pipefail
+set -o errexit
+set -o nounset
+set -o pipefail
 
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 BUCKET_NAME="iac-foundation-tf-state"
