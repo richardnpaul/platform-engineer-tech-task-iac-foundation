@@ -31,12 +31,12 @@ permissions:
   pull-requests: write  # Required to comment on PRs
 
 env:
-  AWS_REGION: eu-west-1
-  TERRAGRUNT_VERSION: 0.94.0
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  AWS_ROOT_ACCOUNT_ID: 793421532223
   TERRAFORM_VERSION: 1.14.1
+  TERRAGRUNT_VERSION: 0.94.0
   TG_CLOUD: aws
   TF_STATE_BUCKET: iac-foundation-tf-state
-  AWS_ROOT_ACCOUNT_ID: 793421532223
 
 jobs:
   # Determine which environment(s) to plan/apply
@@ -72,9 +72,9 @@ jobs:
     environment: ${{ matrix.environment }}  # Use GitHub environment for secrets/protection
 
     env:
+      PLAN_ARTIFACT_NAME: tfplan-${{ matrix.environment }}-${{ github.event.pull_request.number || github.run_number }}-${{ github.sha }}
       TF_VAR_environment: ${{ matrix.environment }}
       TF_VAR_region: ${{ vars.AWS_REGION }}  # From GitHub environment variables
-      PLAN_ARTIFACT_NAME: tfplan-${{ matrix.environment }}-${{ github.event.pull_request.number || github.run_number }}-${{ github.sha }}
 
     steps:
       - name: Checkout code
@@ -84,7 +84,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v5
         with:
           role-to-assume: arn:aws:iam::${{ env.AWS_ROOT_ACCOUNT_ID }}:role/GitHubActionsDeploymentRole
-          aws-region: ${{ vars.AWS_REGION }}
+          aws-region: ${{ env.AWS_REGION }}
           role-session-name: github-actions-${{ matrix.environment }}-${{ github.run_id }}
 
       - name: Verify AWS identity
@@ -105,9 +105,10 @@ jobs:
           terragrunt --version
 
       - name: Terragrunt Plan - Infrastructure
-        id: plan
+        id: plan-infra
         working-directory: environments/aws/infrastructure
         run: |
+          set -o pipefail
           echo "📋 Planning ${{ matrix.environment }} environment..."
 
           # Run plan with environment-specific tfvars
@@ -126,28 +127,37 @@ jobs:
         if: (success() || failure()) && !cancelled()
         with:
           name: ${{ env.PLAN_ARTIFACT_NAME }}
-          path: environments/aws/infrastructure/tfplan-${{ matrix.environment }}.[binary|txt]
+          path: |
+            environments/aws/infrastructure/tfplan-${{ matrix.environment }}.binary
+            environments/aws/infrastructure/tfplan-${{ matrix.environment }}.txt
           retention-days: 7
+          if-no-files-found: warn
 
       - name: Upload plans to S3
         if: success()
         run: |
           PLAN_BUCKET="${{ env.TF_STATE_BUCKET }}"
           PLAN_KEY="terraform-plans/${{ github.event.pull_request.number || github.run_number }}/${{ github.sha }}"
+          DEPLOY_ENV="${{ matrix.environment }}"
+          TF_BIN_PATH="environments/aws/infrastructure/tfplan-${DEPLOY_ENV}.binary"
 
-          echo "📤 Uploading ${{ matrix.environment }} plan to S3..."
+          echo "📤 Uploading ${DEPLOY_ENV} plan to S3: ${PLAN_BUCKET}/${PLAN_KEY}/"
 
-          if [ ! -f $(pwd)/environments/aws/infrastructure/tfplan-${{ matrix.environment }}.binary ]; then
-            echo "❌ Plan binary not found, erroring out at S3 upload step"
+          INFRA_OUTCOME="${{ steps.plan-infra.outcome }}"
+
+          # Handle infrastructure plan
+          if [ "${INFRA_OUTCOME}" = "success" ]; then
+            if [ -f "${TF_BIN_PATH}" ]; then
+              aws s3 cp "${TF_BIN_PATH}" \
+                s3://${PLAN_BUCKET}/${PLAN_KEY}/${DEPLOY_ENV}-infrastructure.tfplan.binary
+              echo "✅ ${DEPLOY_ENV}-infrastructure: Uploaded plan with changes to s3://${PLAN_BUCKET}/${PLAN_KEY}/"
+            else
+              echo "ℹ️  ${DEPLOY_ENV}-infrastructure: Plan succeeded with no changes (no-op)"
+            fi
+          else
+            echo "❌ ${DEPLOY_ENV}-infrastructure: Plan failed (outcome: ${INFRA_OUTCOME})"
             exit 1
           fi
-
-          aws s3 cp $(pwd)/environments/aws/infrastructure/tfplan-${{ matrix.environment }}.binary \
-            s3://${PLAN_BUCKET}/${PLAN_KEY}/${{ matrix.environment }}.tfplan.binary
-
-          echo "✅ Plan uploaded to s3://${PLAN_BUCKET}/${PLAN_KEY}/"
-        env:
-          AWS_REGION: ${{ vars.AWS_REGION }}
 
       - name: Comment PR with plan
         uses: actions/github-script@v8
@@ -165,21 +175,39 @@ jobs:
               }
             };
 
-            const plan = readPlanSafe('environments/aws/infrastructure/tfplan-${{ matrix.environment }}.txt');
+            const infraSuccess = '${{ steps.plan-infra.outcome }}' === 'success';
+            const planInfra = readPlanSafe('environments/aws/infrastructure/tfplan.txt');
 
-            const output = `### Terraform Plan: **${{ matrix.environment }}** Environment
+            const formatPlanSection = (title, success, planText) => {
+              const statusIcon = success ? '✅' : '❌';
+              const statusText = success ? 'Success' : 'Failed';
+
+              if (!planText) {
+                return `#### ${title} ${statusIcon}
+            **Status:** ${statusText} - No changes detected
+
+            Infrastructure matches configuration. No plan file generated.`;
+              }
+
+              return `#### ${title} ${statusIcon}
+            **Status:** ${statusText}
 
             <details><summary>Show Plan</summary>
 
             \`\`\`hcl
-            ${plan}
+            ${planText}
             \`\`\`
 
-            </details>
+            </details>`;
+            };
+
+            const output = `### Terraform Plan: **${{ matrix.environment }}** Environment
+
+            ${formatPlanSection('${{ matrix.environment }}'.capitalize() + ' Base Infrastructure (VPC)', infraSuccess, planInfra)}
 
             ---
-            **Artifact:** \`${{ env.PLAN_ARTIFACT_NAME }}\` (7-day retention)
-            **S3 Location:** \`s3://${{ env.TF_STATE_BUCKET }}/terraform-plans/${{ github.event.pull_request.number }}/${{ github.sha }}/${{ matrix.environment }}.tfplan.binary\`
+            **Plan artifact:** \`${{ env.PLAN_ARTIFACT_NAME }}\` (7-day retention)
+            **Plan S3 location:** \`s3://${{ env.TF_STATE_BUCKET }}/terraform-plans/${{ github.event.pull_request.number || github.run_number }}/${{ github.sha }}/${{ matrix.environment }}.tfplan.binary\`
             **Environment:** \`${{ matrix.environment }}\`
             **Region:** \`${{ env.TF_VAR_region }}\`
             *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
@@ -273,8 +301,6 @@ jobs:
 
           ls -lh environments/aws/infrastructure/tfplan-${{ matrix.environment }}.binary \
             || (echo "❌ ${{ matrix.environment }}: file not found" && exit 1)
-        env:
-          AWS_REGION: ${{ vars.AWS_REGION }}
 
       - name: Terragrunt Apply - Infrastructure
         working-directory: environments/aws/infrastructure

@@ -10,10 +10,10 @@ permissions:
   contents: write
 
 env:
-  AWS_REGION: eu-west-1
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  AWS_ACCOUNT_ID: 793421532223
   ECR_REPOSITORY: dev-app-repo
   IMAGE_TAG: ${{ github.sha }}
-  AWS_ACCOUNT_ID: 793421532223
 
 jobs:
   build-and-deploy:

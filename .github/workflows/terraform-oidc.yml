@@ -21,15 +21,13 @@ permissions:
   pull-requests: write  # Required to comment on PRs
 
 env:
-  AWS_REGION: eu-west-1
-  TERRAGRUNT_VERSION: 0.94.0
-  TERRAFORM_VERSION: 1.14.1
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  AWS_ROOT_ACCOUNT_ID: 793421532223
   PLAN_ARTIFACT_NAME: tfplan-${{ github.event.pull_request.number || github.run_number }}-${{ github.sha }}
+  TERRAFORM_VERSION: 1.14.1
+  TERRAGRUNT_VERSION: 0.94.0
   TG_CLOUD: aws
   TF_STATE_BUCKET: iac-foundation-tf-state
-  AWS_ROOT_ACCOUNT_ID: 793421532223
-  # Organizations account emails - set these as GitHub repository secrets
-  # TF_VAR_dev_email is set from secrets.DEV_ACCOUNT_EMAIL
 
 jobs:
   terraform-plan:
@@ -40,6 +38,8 @@ jobs:
 
     env:
       TF_VAR_dev_email: ${{ secrets.DEV_ACCOUNT_EMAIL }}
+      TF_VAR_environment: dev
+      TF_VAR_region: ${{ vars.AWS_REGION }}
 
     steps:
       - name: Checkout code
@@ -92,15 +92,15 @@ jobs:
       - name: Terragrunt Plan - Dev Infrastructure
         id: plan-dev-infra
         working-directory: environments/aws/infrastructure
-        env:
-          TF_VAR_environment: dev
-          TF_VAR_region: ${{ vars.AWS_REGION }}
         run: |
           set -o pipefail
+
           terragrunt plan -var-file=dev.tfvars -out=$(pwd)/tfplan.binary 2>&1 | tee $(pwd)/plan.txt
-          # If plan succeeded, generate human-readable output
-          if [ -f $(pwd)/tfplan.binary ]; then
-            terragrunt show -no-color $(pwd)/tfplan.binary > $(pwd)/tfplan.txt
+
+          # If plan succeeded, generate human-readable output (copy binary file first to avoid deletion)
+          cp $(pwd)/tfplan.binary $(pwd)/tfplan.binary.copy
+          if [ -f $(pwd)/tfplan.binary.copy ]; then
+            terragrunt show -no-color $(pwd)/tfplan.binary.copy > $(pwd)/tfplan.txt
           fi
         continue-on-error: true
 
@@ -112,8 +112,6 @@ jobs:
           path: |
             environments/aws/root/deployment/github-oidc/tfplan.binary
             environments/aws/root/deployment/github-oidc/tfplan.txt
-            environments/aws/infrastructure/tfplan.binary
-            environments/aws/infrastructure/tfplan.txt
           retention-days: 7  # Only keep artifacts around for 7 days
           if-no-files-found: warn
 
@@ -121,52 +119,25 @@ jobs:
         if: (success() || failure()) && !cancelled()
         run: |
           PLAN_BUCKET="${{ env.TF_STATE_BUCKET }}"
-          PLAN_KEY="terraform-plans/${{ github.event.pull_request.number }}/${{ github.sha }}"
+          PLAN_KEY="terraform-plans/${{ github.event.pull_request.number || github.run_number }}/${{ github.sha }}"
+          TF_BIN_PATH="environments/aws/root/deployment/github-oidc/tfplan.binary"
 
-          echo "📤 Uploading plans to S3: ${PLAN_BUCKET}/${PLAN_KEY}/"
+          echo "📤 Uploading plan to S3: ${PLAN_BUCKET}/${PLAN_KEY}/"
 
-          UPLOADED=0
           OIDC_OUTCOME="${{ steps.plan-oidc.outcome }}"
-          INFRA_OUTCOME="${{ steps.plan-dev-infra.outcome }}"
 
           # Handle OIDC plan
-          OIDC_PATH="environments/aws/root/deployment/github-oidc/tfplan.binary"
           if [ "${OIDC_OUTCOME}" = "success" ]; then
-            if [ -f "${OIDC_PATH}" ]; then
-              aws s3 cp "${OIDC_PATH}" \
+            if [ -f "${TF_BIN_PATH}" ]; then
+              aws s3 cp "${TF_BIN_PATH}" \
                 s3://${PLAN_BUCKET}/${PLAN_KEY}/github-oidc.tfplan.binary
               echo "✅ github-oidc: Uploaded plan with changes"
-              UPLOADED=$((UPLOADED + 1))
             else
               echo "ℹ️  github-oidc: Plan succeeded with no changes (no-op)"
             fi
           else
             echo "❌ github-oidc: Plan failed (outcome: ${OIDC_OUTCOME})"
-          fi
-
-          # Handle infrastructure plan
-          INFRA_PATH="environments/aws/infrastructure/tfplan.binary"
-          if [ "${INFRA_OUTCOME}" = "success" ]; then
-            if [ -f "${INFRA_PATH}" ]; then
-              aws s3 cp "${INFRA_PATH}" \
-                s3://${PLAN_BUCKET}/${PLAN_KEY}/dev-infrastructure.tfplan.binary
-              echo "✅ dev-infrastructure: Uploaded plan with changes"
-              UPLOADED=$((UPLOADED + 1))
-            else
-              echo "ℹ️  dev-infrastructure: Plan succeeded with no changes (no-op)"
-            fi
-          else
-            echo "❌ dev-infrastructure: Plan failed (outcome: ${INFRA_OUTCOME})"
-          fi
-
-          # Fail only if BOTH plans failed
-          if [ "${OIDC_OUTCOME}" != "success" ] && [ "${INFRA_OUTCOME}" != "success" ]; then
-            echo "❌ Both plans failed - cannot proceed"
             exit 1
-          elif [ $UPLOADED -eq 0 ]; then
-            echo "✅ All plans succeeded with no changes (nothing to upload)"
-          else
-            echo "✅ Plan upload complete ($UPLOADED plan file(s) uploaded)"
           fi
 
       - name: Comment PR with plan
@@ -186,10 +157,7 @@ jobs:
             };
 
             const oidcSuccess = '${{ steps.plan-oidc.outcome }}' === 'success';
-            const infraSuccess = '${{ steps.plan-dev-infra.outcome }}' === 'success';
-
             const planOidc = readPlanSafe('environments/aws/root/deployment/github-oidc/tfplan.txt');
-            const planInfra = readPlanSafe('environments/aws/infrastructure/tfplan.txt');
 
             const formatPlanSection = (title, success, planText) => {
               const statusIcon = success ? '✅' : '❌';
@@ -218,17 +186,14 @@ jobs:
 
             ${formatPlanSection('GitHub OIDC Stack', oidcSuccess, planOidc)}
 
-            ${formatPlanSection('Dev Infrastructure (VPC + EKS Clusters)', infraSuccess, planInfra)}
-
             ---
             **Plan artifact:** \`${{ env.PLAN_ARTIFACT_NAME }}\` (7-day GitHub retention)
-            **Plan S3 location:** \`s3://${{ env.TF_STATE_BUCKET }}/terraform-plans/${{ github.event.pull_request.number }}/${{ github.sha }}/\` (14-day S3 lifecycle)
+            **Plan S3 location:** \`s3://${{ env.TF_STATE_BUCKET }}/terraform-plans/${{ github.event.pull_request.number || github.run_number }}/${{ github.sha }}/\` (14-day S3 lifecycle)
             **Note:**
             - Plans with changes stored in both GitHub artifacts (7d) and S3 (14d).
             - Plans with no changes don't generate binary files (nothing to apply).
             - Infrastructure uses environment parameterization (dev.tfvars).
 
-            **Deployment order:** Organizations (manual) → GitHub OIDC → Dev Infrastructure
             **Organizations:** Managed locally with admin credentials for security.
             *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Workflow: \`${{ github.workflow }}\`*`;
 
@@ -244,9 +209,10 @@ jobs:
     runs-on: ubuntu-24.04
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: terraform-plan
-    environment: production  # Requires manual approval in GitHub
+    environment: dev
 
     env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
       TF_VAR_dev_email: ${{ secrets.DEV_ACCOUNT_EMAIL }}
 
     steps:
@@ -271,7 +237,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v5
         with:
           role-to-assume: arn:aws:iam::${{ env.AWS_ROOT_ACCOUNT_ID }}:role/GitHubActionsDeploymentRole
-          aws-region: ${{ vars.AWS_REGION }}
+          aws-region: ${{ env.AWS_REGION }}
           role-session-name: github-actions-${{ github.run_id }}
 
       - name: Verify AWS identity
@@ -316,11 +282,9 @@ jobs:
           aws s3 cp "${S3_PATH}github-oidc.tfplan.binary" environments/aws/root/deployment/github-oidc/tfplan.binary || (echo "❌ github-oidc plan not found" && exit 1)
           aws s3 cp "${S3_PATH}dev-infrastructure.tfplan.binary" environments/aws/infrastructure/tfplan.binary || (echo "❌ dev-infrastructure plan not found" && exit 1)
 
-          echo "✅ Verifying downloaded plans:"
+          echo "Verifying downloaded plans:"
           ls -lh environments/aws/root/deployment/github-oidc/tfplan.binary || (echo "❌ github-oidc: not found" && exit 1)
           ls -lh environments/aws/infrastructure/tfplan.binary || (echo "❌ dev-infrastructure: not found" && exit 1)
-        env:
-          AWS_REGION: ${{ vars.AWS_REGION }}
 
       # Apply stacks sequentially to:
       # 1. Respect dependencies (OIDC → Infrastructure)
@@ -334,7 +298,7 @@ jobs:
         working-directory: environments/aws/infrastructure
         env:
           TF_VAR_environment: dev
-          TF_VAR_region: ${{ vars.AWS_REGION }}
+          TF_VAR_region: ${{ env.AWS_REGION }}
         run: |
           terragrunt apply tfplan.binary
         continue-on-error: false
