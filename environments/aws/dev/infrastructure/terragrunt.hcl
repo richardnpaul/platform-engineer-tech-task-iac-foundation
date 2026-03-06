@@ -31,9 +31,9 @@ terraform {
 }
 
 inputs = {
-  region              = local.region
-  environment         = local.environment
-  kubernetes_version  = "1.34"
+  region             = local.region
+  environment        = local.environment
+  kubernetes_version = "1.34"
 
   # VPC Configuration
   vpc_cidr = "10.0.0.0/16"

@@ -36,7 +36,7 @@ inputs = {
   # Subnet tags for lookup
   private_subnet_tags = {
     "kubernetes.io/role/internal-elb" = "1"
-    "Environment" = local.environment
+    "Environment"                     = local.environment
   }
 
   # ALB target group name for lookup

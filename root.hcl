@@ -7,7 +7,7 @@ locals {
   # Include environment in state key to prevent state conflicts between environments
   # When using environment parameterization, TF_VAR_environment is set by CI/CD or locally
   # Falls back to "default" for stacks that don't use environment parameterization
-  environment    = get_env("TF_VAR_environment", "default")
+  environment = get_env("TF_VAR_environment", "default")
 
   backend_definitions = {
     aws = {
@@ -59,8 +59,8 @@ locals {
   backend_config_with_key = merge(
     local.selected_backend.config,
     local.backend_key_attribute == "prefix"
-      ? { prefix = local.state_key }
-      : { key = local.state_key }
+    ? { prefix = local.state_key }
+    : { key = local.state_key }
   )
 }
 

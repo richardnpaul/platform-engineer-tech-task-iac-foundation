@@ -8,20 +8,20 @@ terraform {
 
 locals {
   environment = "root"
-  aws_region  = get_env("AWS_REGION", "eu-west-1")  # Same region as state bucket
+  aws_region  = get_env("AWS_REGION", "eu-west-1") # Same region as state bucket
 }
 
 inputs = {
   bucket_name        = "iac-foundation-tf-plans"
-  versioning_enabled = false  # No versioning needed for plans
-  force_destroy      = true   # Allow cleanup in dev/test
+  versioning_enabled = false # No versioning needed for plans
+  force_destroy      = true  # Allow cleanup in dev/test
 
   lifecycle_rules = [
     {
-      id      = "cleanup-old-plans"
-      enabled = true
-      prefix  = ""  # Apply to all objects
-      expiration_days = 14  # Delete after 2 weeks
+      id                                     = "cleanup-old-plans"
+      enabled                                = true
+      prefix                                 = "" # Apply to all objects
+      expiration_days                        = 14 # Delete after 2 weeks
       abort_incomplete_multipart_upload_days = 1
     }
   ]

@@ -51,3 +51,11 @@ repos:
       - id: terraform-docs-go
         name: terraform-docs-go vpc
         args: ["markdown", "table", "--output-file", "README.md", "./modules/aws/vpc"]
+
+  - repo: https://github.com/gruntwork-io/pre-commit
+    rev: v0.1.30
+    hooks:
+      - id: terraform-fmt
+        args: ["-check"]
+      - id: terraform-validate
+      - id: terragrunt-hcl-fmt

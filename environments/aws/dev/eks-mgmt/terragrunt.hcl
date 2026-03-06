@@ -30,10 +30,10 @@ inputs = {
   cluster_name       = local.cluster
   kubernetes_version = "1.34"
 
-  vpc_name           = "shared-vpc"
+  vpc_name = "shared-vpc"
   private_subnet_tags = {
     "kubernetes.io/role/internal-elb" = "1"
-    "Environment" = local.environment
+    "Environment"                     = local.environment
   }
   alb_target_group_name = "mgmt-tg"
   alb_name              = "shared-alb"

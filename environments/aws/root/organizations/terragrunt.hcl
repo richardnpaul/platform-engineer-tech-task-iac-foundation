@@ -7,10 +7,10 @@ locals {
   aws_region  = get_env("AWS_REGION", "eu-west-1")
 
   tags = {
-    Environment  = local.environment
-    ManagedBy    = "Terragrunt"
-    Stack        = "organizations"
-    Project      = "iac-foundation"
+    Environment = local.environment
+    ManagedBy   = "Terragrunt"
+    Stack       = "organizations"
+    Project     = "iac-foundation"
   }
 }
 

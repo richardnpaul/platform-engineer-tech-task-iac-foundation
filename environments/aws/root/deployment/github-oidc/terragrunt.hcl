@@ -14,15 +14,15 @@ dependency "orgs" {
 }
 
 locals {
-  environment = "production"  # OIDC is a root/management account resource
+  environment = "production" # OIDC is a root/management account resource
   aws_region  = get_env("AWS_REGION", "eu-west-1")
 
   tags = {
-    Environment  = local.environment
-    ManagedBy    = "Terragrunt"
-    Stack        = "github-oidc"
-    Project      = "iac-foundation"
-    Account      = "Management"
+    Environment = local.environment
+    ManagedBy   = "Terragrunt"
+    Stack       = "github-oidc"
+    Project     = "iac-foundation"
+    Account     = "Management"
   }
 }
 
@@ -52,9 +52,9 @@ inputs = {
   # Target accounts where GitHub Actions can deploy
   # TODO: Make this dynamic with dependencies once Terragrunt supports it better
   target_account_ids = [
-    "515048895906",  # deployment
-    "249127818770",  # log-archive
-    "102663704257"   # audit
+    "515048895906", # deployment
+    "249127818770", # log-archive
+    "102663704257"  # audit
   ]
 
   tags = local.tags
