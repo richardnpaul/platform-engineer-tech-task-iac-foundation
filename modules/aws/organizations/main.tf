@@ -8,14 +8,14 @@
 # Note: AWS Control Tower can be layered on top of this structure if needed
 
 terraform {
-  required_version = ">= 1.5"
+  required_version = ">= 1.14,<2.0"
 
   backend "s3" {}
 
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = ">= 5.0"
+      version = ">= 6.0,<7.0"
     }
   }
 }
@@ -86,6 +86,23 @@ resource "aws_organizations_account" "deployment" {
   role_name = "OrganizationAccountAccessRole"
   tags = merge(var.tags, {
     Purpose = "CI/CD and infrastructure automation"
+  })
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+# Development/Test Account
+resource "aws_organizations_account" "dev" {
+  name      = "Development"
+  email     = var.dev_email
+  parent_id = aws_organizations_organizational_unit.workloads.id
+
+  role_name = "OrganizationAccountAccessRole"
+  tags = merge(var.tags, {
+    Purpose     = "Development and testing workloads"
+    Environment = "dev"
   })
 
   lifecycle {

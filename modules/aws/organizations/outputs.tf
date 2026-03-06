@@ -32,3 +32,13 @@ output "deployment_account_arn" {
   description = "ARN of the Deployment account"
   value       = aws_organizations_account.deployment.arn
 }
+
+output "dev_account_id" {
+  description = "ID of the Development account"
+  value       = aws_organizations_account.dev.id
+}
+
+output "dev_account_arn" {
+  description = "ARN of the Development account"
+  value       = aws_organizations_account.dev.arn
+}

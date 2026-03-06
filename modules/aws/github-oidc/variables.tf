@@ -8,8 +8,14 @@ variable "github_repo" {
   type        = string
 }
 
+variable "allow_legacy_pull_request" {
+  description = "Allow authentication using the legacy pull_request subject (without environment)"
+  type        = bool
+  default     = false
+}
+
 variable "allowed_subjects" {
-  description = "List of allowed GitHub OIDC subject patterns (e.g., repo:org/repo:ref:refs/heads/main)"
+  description = "DEPRECATED: Use environment-based authentication instead. List of allowed GitHub OIDC subject patterns"
   type        = list(string)
   default     = []
 }

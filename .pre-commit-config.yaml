@@ -1,0 +1,61 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-added-large-files
+      - id: check-builtin-literals
+      - id: check-case-conflict
+      - id: check-executables-have-shebangs
+      - id: check-illegal-windows-names
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-shebang-scripts-are-executable
+      - id: check-symlinks
+      - id: check-toml
+      - id: check-yaml
+      - id: detect-aws-credentials
+      - id: detect-private-key
+      - id: end-of-file-fixer
+      - id: fix-byte-order-marker
+      - id: mixed-line-ending
+        args: ['--fix=lf']
+      - id: trailing-whitespace
+
+  - repo: https://github.com/terraform-docs/terraform-docs
+    rev: v0.21.0
+    hooks:
+      - id: terraform-docs-go
+        name: terraform-docs-go bootstrap
+        args: ["markdown", "table", "--output-file", "README.md", "./modules/aws/bootstrap"]
+      - id: terraform-docs-go
+        name: terraform-docs-go ecr
+        args: ["markdown", "table", "--output-file", "README.md", "./modules/aws/ecr"]
+      - id: terraform-docs-go
+        name: terraform-docs-go eks
+        args: ["markdown", "table", "--output-file", "README.md", "./modules/aws/eks"]
+      - id: terraform-docs-go
+        name: terraform-docs-go foundation
+        args: ["markdown", "table", "--output-file", "README.md", "./modules/aws/foundation"]
+      - id: terraform-docs-go
+        name: terraform-docs-go landing-zone
+        args: ["markdown", "table", "--output-file", "README.md", "./modules/aws/landing-zone"]
+      - id: terraform-docs-go
+        name: terraform-docs-go organizations
+        args: ["markdown", "table", "--output-file", "README.md", "./modules/aws/organizations"]
+      - id: terraform-docs-go
+        name: terraform-docs-go s3-bucket
+        args: ["markdown", "table", "--output-file", "README.md", "./modules/aws/s3-bucket"]
+      - id: terraform-docs-go
+        name: terraform-docs-go s3-lifecycle
+        args: ["markdown", "table", "--output-file", "README.md", "./modules/aws/s3-lifecycle"]
+      - id: terraform-docs-go
+        name: terraform-docs-go vpc
+        args: ["markdown", "table", "--output-file", "README.md", "./modules/aws/vpc"]
+
+  - repo: https://github.com/gruntwork-io/pre-commit
+    rev: v0.1.30
+    hooks:
+      - id: terraform-fmt
+        args: ["-check"]
+      - id: terraform-validate
+      - id: terragrunt-hcl-fmt

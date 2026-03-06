@@ -1,0 +1,35 @@
+---
+name: Checkov - Terraform Static Code Analysis
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+  # Allow manual triggering of the workflow with specific inputs
+  workflow_dispatch:
+
+jobs:
+  checkov:
+    permissions:
+      contents: read
+
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Python 3.14
+        uses: actions/setup-python@v6
+        with:
+          python-version: 3.14
+
+      - name: Test with Checkov
+        id: checkov
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: .
+          output_format: cli
+          output_file_path: console
